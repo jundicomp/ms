@@ -860,6 +860,8 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   bootLoading: true, bootError: null, bootErrorType: null, dialogIdleTampil: false,
   emailLookupLoading: false, emailLookupNotFound: false, emailLookupTried: '',
   emailRegistrasiInfo: null,
+  profileError: '', profileSukses: '', profileLoading: false,
+  lupaPasswordSukses: false, lupaPasswordPesan: '', lupaPasswordEmail: '',
   gatePage: 'email', emailGerbang: '',
   sidebarOpen: window.innerWidth > 768,
   userMenuOpen: false,
@@ -4562,14 +4564,40 @@ function handleProfilePhotoChange(input){
   };
   reader.readAsDataURL(file);
 }
-function handleProfileFormSubmit(ev){
+async function handleProfileFormSubmit(ev){
   ev.preventDefault();
-  const user = MOCK_USERS.find(u=>u.email===state.session.email);
-  if (user){
-    user.whatsapp = getFieldVal('pf-whatsapp');
-    logActivity('Ubah Profil', 'Nomor WhatsApp diperbarui');
+  const whatsapp = getFieldVal('pf-whatsapp');
+  const passwordBaru = getFieldVal('pf-password-baru');
+  const passwordUlang = getFieldVal('pf-password-ulang');
+
+  state.profileError = ''; state.profileSukses = '';
+  if (passwordBaru || passwordUlang){
+    if (passwordBaru.length < 6){ state.profileError = 'Password baru minimal 6 karakter.'; render(); return; }
+    if (passwordBaru !== passwordUlang){ state.profileError = 'Password dan ulangi password tidak sama.'; render(); return; }
   }
-  render();
+
+  state.profileLoading = true; render();
+  try {
+    const payload = { email: state.session.email, whatsapp };
+    if (passwordBaru) payload.password = passwordBaru;
+    const data = await callBackendUtama('updateUser', { user: payload });
+    state.profileLoading = false;
+    if (!data.success){ state.profileError = data.message || 'Gagal menyimpan perubahan.'; render(); return; }
+
+    const user = MOCK_USERS.find(u=>u.email===state.session.email);
+    if (user) user.whatsapp = whatsapp;
+    if (passwordBaru){
+      state.session.perluGantiPassword = false; // password sudah diganti -> banner "wajib ganti password" langsung hilang
+      logActivity('Ganti Password', 'Password akun diperbarui sendiri lewat menu Profil');
+    }
+    logActivity('Ubah Profil', 'Nomor WhatsApp diperbarui');
+    state.profileSukses = 'Perubahan berhasil disimpan.';
+    render();
+  } catch (err) {
+    state.profileLoading = false;
+    state.profileError = 'Gagal terhubung ke server: ' + err.message;
+    render();
+  }
 }
 function exportMyActivityExcel(){
   const myActivity = MOCK_ACTIVITY_LOG.filter(l=>l.user===state.session.nama);
@@ -4603,7 +4631,16 @@ function renderProfile(roleId){
           <div style="grid-column:1 / -1;"><label>Email</label><div style="padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;background:var(--bg);color:var(--ink-soft);">${state.session.email}</div></div>
           <div style="grid-column:1 / -1;"><label>Nomor WhatsApp</label><input type="text" id="pf-whatsapp" value="${user.whatsapp||''}" placeholder="08xx-xxxx-xxxx"></div>
         </div>
-        <button class="primary" type="submit" style="width:auto;padding:9px 20px;">Simpan Perubahan</button>
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px;">
+          <div style="font-size:12.5px;font-weight:600;color:var(--navy);margin-bottom:8px;">${state.session.perluGantiPassword ? '&#9888; Ganti Password Anda (wajib, Anda login dengan password sementara)' : 'Ganti Password'}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+            <div><label>Password Baru</label><input type="password" id="pf-password-baru" placeholder="Kosongkan kalau tidak ingin ganti"></div>
+            <div><label>Ulangi Password Baru</label><input type="password" id="pf-password-ulang" placeholder="Ketik ulang password yang sama"></div>
+          </div>
+        </div>
+        ${state.profileError ? `<div class="error-msg" style="margin-top:10px;">${state.profileError}</div>` : ''}
+        ${state.profileSukses ? `<div style="color:#2FA36B;font-size:12px;margin-top:10px;">&#10003; ${state.profileSukses}</div>` : ''}
+        <button class="primary" type="submit" style="width:auto;padding:9px 20px;margin-top:12px;" ${state.profileLoading?'disabled':''}>${state.profileLoading?'<span class="koin-loading-kecil">🪙</span>Menyimpan...':'Simpan Perubahan'}</button>
       </form>
     </div>`;
 
@@ -5431,7 +5468,69 @@ function renderLogin(){
     </form>
     <div style="text-align:center;margin-top:10px;">
       <span onclick="kembaliKeGerbangEmail()" style="font-size:11.5px;color:var(--ink-soft);cursor:pointer;text-decoration:underline;">Bukan Anda? Ganti email</span>
+      &nbsp;&middot;&nbsp;
+      <span onclick="bukaLupaPassword()" style="font-size:11.5px;color:var(--gold);cursor:pointer;text-decoration:underline;">Lupa Password?</span>
     </div>
+  </div></div>`;
+}
+
+function bukaLupaPassword(){
+  state.gatePage = 'lupaPassword';
+  state.error = '';
+  render();
+}
+
+function renderLupaPassword(){
+  const logoKantor = state.systemSettings.logoKantor;
+  const sealHtml = logoKantor
+    ? `<div class="seal" style="overflow:hidden;padding:0;"><img src="${logoKantor}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>`
+    : `<div class="seal">KP</div>`;
+  return `<div class="login-wrap"><div class="login-box">
+    ${sealHtml}
+    <div class="login-title" style="font-size:19px;">Lupa Password?</div>
+    <div class="login-sub">Masukkan email Anda yang terdaftar,<br>kami akan bantu pulihkan akses.</div>
+    ${state.error?`<div class="error-msg">${state.error}</div>`:''}
+    <form onsubmit="kirimLupaPassword(event)">
+      <label>Email</label><input type="email" id="f-lupa-email" placeholder="nama@kantorpajak.id" required>
+      <button class="primary" type="submit" ${state.loading?'disabled':''}>${state.loading?'<span class="koin-loading-kecil">🪙</span>Mengirim... <span id="loading-timer-detik" style="font-family:var(--font-mono);opacity:.85;">0.0s</span>':'Kirim Password Sementara'}</button>
+    </form>
+    <div style="text-align:center;margin-top:10px;">
+      <span onclick="state.gatePage='login'; render();" style="font-size:11.5px;color:var(--ink-soft);cursor:pointer;text-decoration:underline;">&larr; Kembali ke Login</span>
+    </div>
+  </div></div>`;
+}
+
+async function kirimLupaPassword(ev){
+  ev.preventDefault();
+  const email = document.getElementById('f-lupa-email').value.trim().toLowerCase();
+  state.loading = true; state.error = ''; render();
+  try {
+    const data = await callBackendUtama('forgotPassword', { email });
+    state.loading = false;
+    state.lupaPasswordSukses = !!data.success;
+    state.lupaPasswordPesan = data.message || '';
+    state.lupaPasswordEmail = email;
+    state.gatePage = 'lupaPasswordHasil';
+    render();
+  } catch (err) {
+    state.loading = false;
+    state.error = 'Gagal terhubung ke server: ' + err.message;
+    render();
+  }
+}
+
+function renderLupaPasswordHasil(){
+  const sukses = state.lupaPasswordSukses;
+  return `<div class="login-wrap"><div class="login-box" style="text-align:center;">
+    <div class="seal" style="margin:0 auto 16px;background:${sukses?'#E3F6EC':'#FBE7EA'};border-color:${sukses?'var(--sage,#2FA36B)':'#C0392B'};color:${sukses?'#2FA36B':'#C0392B'};">${sukses?'&#10003;':'?'}</div>
+    <div class="login-title" style="font-size:17px;">${sukses?'Password Sementara Terkirim':'Email Tidak Ditemukan'}</div>
+    <p style="font-size:12.5px;color:var(--ink-soft);line-height:1.7;margin:14px 0 20px;">
+      ${sukses
+        ? `Kami sudah mengirim password sementara ke <b style="color:var(--ink);">${state.lupaPasswordEmail}</b>. Gunakan itu untuk login, lalu segera ganti dengan password pilihan Anda sendiri di menu Profil Saya.`
+        : (state.lupaPasswordPesan || 'Email ini tidak ditemukan sebagai user terdaftar.')}
+    </p>
+    <button class="primary" type="button" onclick="state.gatePage='login'; render();" style="width:auto;padding:10px 24px;display:inline-block;">Ke Halaman Login</button>
+    ${!sukses ? `<p style="margin-top:16px;"><span onclick="state.gatePage='lupaPassword'; render();" style="font-size:12px;color:var(--gold);cursor:pointer;text-decoration:underline;">&larr; Coba email lain</span></p>` : ''}
   </div></div>`;
 }
 function toggleSidebar(){ state.sidebarOpen = !state.sidebarOpen; render(); }
@@ -5736,6 +5835,11 @@ function renderShell(){
     ? `<div class="seal" style="overflow:hidden;padding:0;"><img src="${s.logoKantor}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>`
     : `<div class="seal">KP</div>`;
   return `${renderTopbar()}
+  ${state.session.perluGantiPassword ? `
+  <div style="background:#FDF3E3;border-bottom:2px solid var(--gold);padding:9px 18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#5A4400;">
+    <span>&#9888; Anda login memakai <b>password sementara</b> — segera ganti dengan password pilihan Anda sendiri.</span>
+    <button class="primary" type="button" onclick="setModule('profile')" style="width:auto;padding:5px 16px;font-size:12px;">Ganti Sekarang</button>
+  </div>` : ''}
   <div class="body-row">
     ${backdropHtml}
     <aside id="sidebar" class="${sidebarClass}">
@@ -5822,6 +5926,8 @@ function render(){
   if (state.session) app.innerHTML = renderShell() + (state.dialogIdleTampil ? renderDialogIdle() : '');
   else if (state.showSetupWizard) app.innerHTML = renderSetupWizard();
   else if (state.gatePage === 'login') app.innerHTML = renderLogin();
+  else if (state.gatePage === 'lupaPassword') app.innerHTML = renderLupaPassword();
+  else if (state.gatePage === 'lupaPasswordHasil') app.innerHTML = renderLupaPasswordHasil();
   else if (state.gatePage === 'ajakanAktivasi') app.innerHTML = renderAjakanAktivasi();
   else if (state.gatePage === 'belumTerdaftar') app.innerHTML = renderBelumTerdaftar();
   else app.innerHTML = renderEmailGerbang();
