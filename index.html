@@ -34,7 +34,8 @@
     --font-display:'Source Serif 4',Georgia,serif; --font-body:'Inter',sans-serif; --font-mono:'IBM Plex Mono',monospace;
   }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:var(--font-body);background:var(--bg);color:var(--ink);}
+  html{overflow-x:hidden;}
+  body{margin:0;font-family:var(--font-body);background:var(--bg);color:var(--ink);overflow-x:hidden;}
   #app{min-height:100vh;display:flex;flex-direction:column;}
   .body-row{display:flex;flex:1;min-height:0;}
 
@@ -42,7 +43,27 @@
   .seal::before{content:'';position:absolute;inset:4px;border:1px dashed var(--gold);border-radius:50%;opacity:.55;}
 
   /* ---- LOGIN ---- */
-  .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:var(--login-bg);min-height:100vh;transition:background-color 2s ease;}
+  .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:var(--login-bg);min-height:100vh;transition:background-color 4s ease;position:relative;overflow:hidden;}
+  .login-wrap::before, .login-wrap::after{
+    content:''; position:absolute; border-radius:50%; filter:blur(70px); pointer-events:none; z-index:0;
+  }
+  .login-wrap::before{
+    width:420px;height:420px;background:radial-gradient(circle,var(--gold) 0%,transparent 70%);
+    top:-8%;left:-6%;opacity:.3;animation:pendarSatu 22s ease-in-out infinite;
+  }
+  .login-wrap::after{
+    width:380px;height:380px;background:radial-gradient(circle,#5B7FC7 0%,transparent 70%);
+    bottom:-10%;right:-8%;opacity:.28;animation:pendarDua 27s ease-in-out infinite;
+  }
+  @keyframes pendarSatu{
+    0%,100%{ transform:translate(0,0) scale(1); opacity:.26; }
+    50%{ transform:translate(70px,55px) scale(1.3); opacity:.5; }
+  }
+  @keyframes pendarDua{
+    0%,100%{ transform:translate(0,0) scale(1); opacity:.26; }
+    50%{ transform:translate(-55px,-45px) scale(1.2); opacity:.48; }
+  }
+  .login-box{ position:relative; z-index:1; }
   .login-box{width:380px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;}
   .login-box .seal{margin:0 auto 14px;}
   .login-title{font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--navy);text-align:center;margin:0 0 4px;}
@@ -184,6 +205,16 @@
     .topbar-session-timers{ margin-right:2px; font-size:10.5px; gap:0; }
     .topbar-user-name{ display:none; } /* mobile cukup ikon profil saja, tanpa nama */
     .topbar-user-btn{ padding:4px; gap:0; }
+    /* Kunci kolom pertama tabel (biasanya Tanggal/No) supaya SELALU kelihatan penuh
+       walau tabel di-scroll ke samping — mencegah kolom pertama "terpotong" kalau
+       swipe vertikal di HP kebetulan ikut men-trigger sedikit scroll horizontal. */
+    .jobs-table th:first-child, .jobs-table td:first-child,
+    table:not(.jobs-table) th:first-child, table:not(.jobs-table) td:first-child{
+      position:sticky; left:0; z-index:2; background:var(--surface,#fff);
+      box-shadow:2px 0 4px rgba(0,0,0,.06);
+    }
+    .jobs-table .table-navy-head th:first-child,
+    table:not(.jobs-table) tr:first-child th:first-child{ background:var(--navy); }
   }
   .topbar-icon-btn{position:relative;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:17px;flex-shrink:0;border:none;transition:background .15s;}
   .topbar-icon-btn:hover{background:rgba(255,255,255,.18);}
@@ -303,6 +334,7 @@
     .topbar-online-list{ display:none; }
     .topbar-session-timers{ display:none; }
     .chat-popup-panel{ left:12px; right:12px; width:auto; bottom:70px; }
+    .topbar-notif-dropdown{ left:12px; right:12px; width:auto; max-width:none; min-width:0; }
     .btn-label{ display:none; }
     .btn-secondary{ padding:8px 10px; }
     .agenda-day-number-box{ width:60px; }
@@ -367,6 +399,39 @@ MODULE_DEFS.forEach(m=>{
   ROLES.forEach(r=>{ moduleConfig[m.id][r.id] = m.roles.includes(r.id); });
 });
 
+// Rincian di DALAM tiap modul (tab, sub-tab, tampilan tertentu) — perluasan dari
+// MODULE_DEFS di atas, pola persis sama, cuma level di bawahnya. parentId dipakai
+// untuk mengelompokkan di UI "Pengaturan Modul - Rinci".
+const SUB_MODULE_DEFS = [
+  { id:'dashboard_tombol_aksi', parentId:'dashboard', name:'Tombol Aksi Cepat', roles:['superadmin','owner','direktur','admin','konsultan','klien','finance'] },
+  { id:'dashboard_kartu_statistik', parentId:'dashboard', name:'Kartu Statistik', roles:['superadmin','owner','direktur','admin','konsultan','klien','finance'] },
+  { id:'dashboard_tren_pendapatan', parentId:'dashboard', name:'Widget: Tren Pendapatan', roles:['superadmin','owner','direktur'] },
+  { id:'dashboard_distribusi_pekerjaan', parentId:'dashboard', name:'Widget: Distribusi Status Pekerjaan', roles:['superadmin','owner','direktur','admin'] },
+  { id:'dashboard_agenda', parentId:'dashboard', name:'Widget: Agenda 7 Hari ke Depan', roles:['superadmin','owner','direktur','admin','konsultan','klien','finance'] },
+  { id:'dashboard_aktivitas', parentId:'dashboard', name:'Widget: Aktivitas Terbaru', roles:['superadmin','owner','direktur','admin','konsultan','klien','finance'] },
+  { id:'klien_profil_wp', parentId:'klien_pajak', name:'Tab: Profil Wajib Pajak', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
+  { id:'klien_tabel', parentId:'klien_pajak', name:'Tab: Tabel Klien', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
+  { id:'klien_detail_ringkasan', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Ringkasan', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
+  { id:'klien_detail_pekerjaan', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Pekerjaan', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
+  { id:'klien_detail_reminder', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Reminder', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
+  { id:'klien_detail_invoice', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Invoice', roles:['superadmin','owner','direktur','admin','finance'] },
+  { id:'klien_detail_dokumen', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Dokumen', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
+  { id:'admin_modul', parentId:'administrasi', name:'Tab: Modul (matriks akses)', roles:['superadmin'] },
+  { id:'admin_user', parentId:'administrasi', name:'Tab: User', roles:['superadmin'] },
+  { id:'admin_sistem', parentId:'administrasi', name:'Tab: Pengaturan / Sistem', roles:['superadmin'] },
+  { id:'admin_log', parentId:'administrasi', name:'Tab: Log Aktivitas', roles:['superadmin'] },
+  { id:'keuangan_invoice', parentId:'keuangan', name:'Tab: Invoice', roles:['superadmin','owner','direktur','admin','finance'] },
+  { id:'keuangan_pajak', parentId:'keuangan', name:'Tab: Laporan Pajak', roles:['superadmin','owner','direktur','admin','konsultan','klien'] },
+];
+const subModuleConfig = {};
+SUB_MODULE_DEFS.forEach(m=>{
+  subModuleConfig[m.id] = {};
+  ROLES.forEach(r=>{ subModuleConfig[m.id][r.id] = m.roles.includes(r.id); });
+});
+// Override per-individu — email -> { subModuleId: true/false }. Kosong sampai
+// dimuat dari Sheet (lihat muatUserOverrides()).
+let userOverrideConfig = {};
+
 // Data awal (akan tertimpa data asli dari Sheet setelah login berhasil)
 const MOCK_USERS = [
   {nama:'Andi Wijaya', email:'superadmin@kantorpajak.id', password:'admin123', role:'superadmin', status:'Aktif', foto:null, whatsapp:'0812-3456-7890', lastActiveMinutes:0},
@@ -379,7 +444,12 @@ const MOCK_USERS = [
 ];
 
 // ---------- DATA KLIEN & OPSI FIELD ----------
-const BENTUK_BADAN_OPTIONS = ['PT','PT Perorangan','CV','Firma','Yayasan','Koperasi','Lainnya'];
+// Daftar Bentuk Badan — BUKAN daftar tetap, bisa bertambah dari waktu ke waktu
+// (lihat handleBentukBadanSelectChange). Diperbarui dari Sheet saat boot.
+let BENTUK_BADAN_OPTIONS = ['PT','PT Perorangan','CV','Firma','Yayasan','Koperasi'];
+// Daftar Bidang Usaha — BUKAN daftar tetap, bisa bertambah dari waktu ke waktu
+// (lihat handleBidangUsahaSelectChange). Diperbarui dari Sheet saat boot.
+let BIDANG_USAHA_OPTIONS = ['Perdagangan Besar','Jasa Konstruksi'];
 const KATEGORI_KLIEN_OPTIONS = ['UMKM','Korporasi','Ekspatriat','Lainnya'];
 const STATUS_KLIEN_OPTIONS = ['Aktif','Nonaktif','Prospek'];
 const JENIS_KONTRAK_OPTIONS = ['Retainer Bulanan','Per-Project'];
@@ -796,7 +866,25 @@ async function muatSemuaDataAplikasi(email){
     muatUlangCatatanKalender(),
     muatUlangPesan(),
     muatUlangLogAktivitas(),
+    muatOverrideSayaSendiri(email),
+    api.getBidangUsahaList(),
+    api.getBentukBadanList(),
   ]);
+}
+async function muatOverrideSayaSendiri(email){
+  try {
+    const result = await api.getUserOverrides(email);
+    if (result.success) state.myOverrides = result.overrides;
+  } catch (err) { /* kalau gagal, bisaAksesSubModul() otomatis pakai default role saja */ }
+}
+// Cek akses rincian modul (tab/sub-tab tertentu) untuk user yang SEDANG login —
+// override individual (kalau ada) menang atas default role-nya.
+function bisaAksesSubModul(subModuleId){
+  if (!state.session) return false;
+  if (state.myOverrides && state.myOverrides[subModuleId] !== undefined) return state.myOverrides[subModuleId];
+  const cfg = subModuleConfig[subModuleId];
+  if (!cfg) return true; // rincian belum terdaftar di Sheet -> default izinkan, jangan sampai fitur baru mengunci semua orang
+  return !!cfg[state.session.role];
 }
 
 const api = {
@@ -847,6 +935,100 @@ const api = {
     }
   },
 
+  async getAllSubModules(){
+    try {
+      const data = await callBackendUtama('getAllSubModulesMatrix');
+      if (data.success && data.subModules.length){
+        data.subModules.forEach(m => {
+          if (!subModuleConfig[m.id]) subModuleConfig[m.id] = {};
+          ROLES.forEach(r => { subModuleConfig[m.id][r.id] = !!m[r.id]; });
+        });
+      }
+    } catch (err) { /* kalau gagal, pakai default statis (SUB_MODULE_DEFS) sebagai cadangan */ }
+
+    const rows = SUB_MODULE_DEFS.map(m=>{
+      const row = { id:m.id, parentId:m.parentId, name:m.name };
+      ROLES.forEach(r=>{ row[r.id] = subModuleConfig[m.id][r.id]; });
+      return row;
+    });
+    return { success:true, subModules: rows };
+  },
+
+  async toggleSubModule(subModuleId, role){
+    try {
+      const data = await callBackendUtama('toggleSubModuleAccess', { subModuleId, role });
+      if (!data.success) return { success:false, message: data.message || 'Gagal menyimpan.' };
+      subModuleConfig[subModuleId][role] = data.newValue;
+      return { success:true, newValue: data.newValue };
+    } catch (err) {
+      return { success:false, message: 'Gagal terhubung ke server: ' + err.message };
+    }
+  },
+
+  async getUserOverrides(email){
+    try {
+      const data = await callBackendUtama('getUserOverrides', { email });
+      if (!data.success) return { success:false, message: data.message };
+      const map = {};
+      data.overrides.forEach(o => { map[o.subModuleId] = o.allowed; });
+      return { success:true, overrides: map };
+    } catch (err) {
+      return { success:false, message: 'Gagal terhubung ke server: ' + err.message };
+    }
+  },
+
+  async setUserOverride(email, subModuleId, allowed){
+    try {
+      const data = await callBackendUtama('setUserOverride', { email, subModuleId, allowed });
+      return data;
+    } catch (err) {
+      return { success:false, message: 'Gagal terhubung ke server: ' + err.message };
+    }
+  },
+
+  async removeUserOverride(email, subModuleId){
+    try {
+      const data = await callBackendUtama('removeUserOverride', { email, subModuleId });
+      return data;
+    } catch (err) {
+      return { success:false, message: 'Gagal terhubung ke server: ' + err.message };
+    }
+  },
+
+  async getBidangUsahaList(){
+    try {
+      const data = await callBackendUtama('getBidangUsahaList');
+      if (data.success && data.daftar.length) BIDANG_USAHA_OPTIONS = [...new Set([...BIDANG_USAHA_OPTIONS, ...data.daftar])];
+      return { success: true };
+    } catch (err) { return { success:false, message: err.message }; }
+  },
+
+  async addBidangUsaha(nama){
+    try {
+      const data = await callBackendUtama('addBidangUsaha', { nama });
+      return data;
+    } catch (err) {
+      return { success:false, message: 'Gagal terhubung ke server: ' + err.message };
+    }
+  },
+
+  async getBentukBadanList(){
+    try {
+      const data = await callBackendUtama('getBentukBadanList');
+      if (data.success && data.daftar.length) BENTUK_BADAN_OPTIONS = [...new Set([...BENTUK_BADAN_OPTIONS, ...data.daftar])];
+      return { success: true };
+    } catch (err) { return { success:false, message: err.message }; }
+  },
+
+  async addBentukBadan(nama){
+    try {
+      const data = await callBackendUtama('addBentukBadan', { nama });
+      return data;
+    } catch (err) {
+      return { success:false, message: 'Gagal terhubung ke server: ' + err.message };
+    }
+  },
+
   _modulesForRole(roleId){
     return MODULE_DEFS.filter(m => moduleConfig[m.id][roleId])
       .map(m => ({ id:m.id, name:m.name }));
@@ -856,12 +1038,14 @@ const api = {
 /* ================================================================
    STATE
    ================================================================ */
-const state = { session:null, modules:[], activeModule:null, allModulesMatrix:null, loading:false, error:'',
+const state = { session:null, modules:[], activeModule:null, allModulesMatrix:null, allSubModulesMatrix:null,
+  moduleSettingsExpanded:{}, overrideUserEmail:'', overrideUserData:null, myOverrides:null, loading:false, error:'',
   bootLoading: true, bootError: null, bootErrorType: null, dialogIdleTampil: false,
   emailLookupLoading: false, emailLookupNotFound: false, emailLookupTried: '',
   emailRegistrasiInfo: null,
   profileError: '', profileSukses: '', profileLoading: false,
   lupaPasswordSukses: false, lupaPasswordPesan: '', lupaPasswordEmail: '',
+  logAktivitasTab: 'semua', logAktivitasSelectedUser: '',
   gatePage: 'email', emailGerbang: '',
   sidebarOpen: window.innerWidth > 768,
   userMenuOpen: false,
@@ -1149,6 +1333,7 @@ function renderDialogIdle(){
 function handleLogout(){
   if (state.session) logActivity('Logout', `${state.session.nama} keluar dari sistem`);
   state.session=null; state.modules=[]; state.activeModule=null; state.allModulesMatrix=null;
+  state.allSubModulesMatrix=null; state.moduleSettingsExpanded={}; state.overrideUserEmail=''; state.overrideUserData=null; state.myOverrides=null;
   state.lastNotifCount=null; state.chatView={ activeWith:null }; state.chatPopupOpen=false;
   state.gatePage='email'; state.emailGerbang='';
   try { sessionStorage.removeItem('portalSession'); } catch(e){}
@@ -1168,6 +1353,8 @@ async function openModuleSettings(){
   state.loading = true; render();
   const result = await api.getAllModules();
   state.allModulesMatrix = result.modules;
+  const subResult = await api.getAllSubModules();
+  state.allSubModulesMatrix = subResult.subModules;
   state.loading = false; render();
 }
 async function toggleModuleCell(moduleId, role){
@@ -1175,6 +1362,48 @@ async function toggleModuleCell(moduleId, role){
   if (result.success){
     state.allModulesMatrix.find(m=>m.id===moduleId)[role] = result.newValue;
     logActivity('Ubah Akses Modul', `${moduleId} untuk role ${role} → ${result.newValue ? 'aktif' : 'nonaktif'}`);
+    render();
+  } else { alert(result.message); }
+}
+function toggleModuleExpand(moduleId){
+  state.moduleSettingsExpanded[moduleId] = !state.moduleSettingsExpanded[moduleId];
+  render();
+}
+async function toggleSubModuleCell(subModuleId, role){
+  const result = await api.toggleSubModule(subModuleId, role);
+  if (result.success){
+    state.allSubModulesMatrix.find(m=>m.id===subModuleId)[role] = result.newValue;
+    logActivity('Ubah Akses Modul', `${subModuleId} (rinci) untuk role ${role} → ${result.newValue ? 'aktif' : 'nonaktif'}`);
+    render();
+  } else { alert(result.message); }
+}
+async function pilihUserUntukOverride(email){
+  if (!email){ state.overrideUserEmail = ''; state.overrideUserData = null; render(); return; }
+  state.overrideUserEmail = email;
+  state.loading = true; render();
+  const result = await api.getUserOverrides(email);
+  state.loading = false;
+  if (result.success){ state.overrideUserData = result.overrides; render(); }
+  else { alert(result.message); }
+}
+async function toggleUserOverrideCell(subModuleId){
+  const user = MOCK_USERS.find(u=>u.email===state.overrideUserEmail);
+  const roleDefault = subModuleConfig[subModuleId] ? subModuleConfig[subModuleId][user.role] : true;
+  const sedangOverride = state.overrideUserData[subModuleId] !== undefined;
+  const nilaiSaatIni = sedangOverride ? state.overrideUserData[subModuleId] : roleDefault;
+  const nilaiBaru = !nilaiSaatIni;
+
+  const result = await api.setUserOverride(state.overrideUserEmail, subModuleId, nilaiBaru);
+  if (result.success){
+    state.overrideUserData[subModuleId] = nilaiBaru;
+    logActivity('Ubah Akses Modul', `Override individual ${state.overrideUserEmail} untuk ${subModuleId} → ${nilaiBaru ? 'diizinkan' : 'ditolak'}`);
+    render();
+  } else { alert(result.message); }
+}
+async function resetUserOverrideCell(subModuleId){
+  const result = await api.removeUserOverride(state.overrideUserEmail, subModuleId);
+  if (result.success){
+    delete state.overrideUserData[subModuleId];
     render();
   } else { alert(result.message); }
 }
@@ -2873,11 +3102,11 @@ function renderClientMonitoring(embedded){
 
   const tabsHtml = `<div class="tabs-row">
     <button class="tab-btn ${state.clientMonitoring.tab==='detail'?'active':''}" onclick="setMonitoringTab('detail')">Detail Klien</button>
-    <button class="tab-btn ${state.clientMonitoring.tab==='ringkasan'?'active':''}" onclick="setMonitoringTab('ringkasan')">Ringkasan</button>
-    <button class="tab-btn ${state.clientMonitoring.tab==='pekerjaan'?'active':''}" onclick="setMonitoringTab('pekerjaan')">Pekerjaan</button>
-    <button class="tab-btn ${state.clientMonitoring.tab==='reminder'?'active':''}" onclick="setMonitoringTab('reminder')">Reminder</button>
-    <button class="tab-btn ${state.clientMonitoring.tab==='invoice'?'active':''}" onclick="setMonitoringTab('invoice')">Invoice</button>
-    <button class="tab-btn ${state.clientMonitoring.tab==='dokumen'?'active':''}" onclick="setMonitoringTab('dokumen')">Dokumen</button>
+    ${bisaAksesSubModul('klien_detail_ringkasan') ? `<button class="tab-btn ${state.clientMonitoring.tab==='ringkasan'?'active':''}" onclick="setMonitoringTab('ringkasan')">Ringkasan</button>` : ''}
+    ${bisaAksesSubModul('klien_detail_pekerjaan') ? `<button class="tab-btn ${state.clientMonitoring.tab==='pekerjaan'?'active':''}" onclick="setMonitoringTab('pekerjaan')">Pekerjaan</button>` : ''}
+    ${bisaAksesSubModul('klien_detail_reminder') ? `<button class="tab-btn ${state.clientMonitoring.tab==='reminder'?'active':''}" onclick="setMonitoringTab('reminder')">Reminder</button>` : ''}
+    ${bisaAksesSubModul('klien_detail_invoice') ? `<button class="tab-btn ${state.clientMonitoring.tab==='invoice'?'active':''}" onclick="setMonitoringTab('invoice')">Invoice</button>` : ''}
+    ${bisaAksesSubModul('klien_detail_dokumen') ? `<button class="tab-btn ${state.clientMonitoring.tab==='dokumen'?'active':''}" onclick="setMonitoringTab('dokumen')">Dokumen</button>` : ''}
   </div>`;
 
   let tabContent = '';
@@ -3472,7 +3701,7 @@ function renderDashboard(roleId){
     klien: [],
     finance: [['+ Buat Invoice','keuangan']],
   };
-  const quickActionsHtml = (quickActionsMap[roleId]||[]).length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+  const quickActionsHtml = (bisaAksesSubModul('dashboard_tombol_aksi') && (quickActionsMap[roleId]||[]).length) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
     ${quickActionsMap[roleId].map(([label,mod])=>`<button class="btn-secondary" onclick="setModule('${mod}')">${label}</button>`).join('')}
   </div>` : '';
 
@@ -3503,7 +3732,7 @@ function renderDashboard(roleId){
           { label:'Dokumen Tersimpan', value:MOCK_DOCUMENTS.length, icon:ICON_STAT_DOC },
           { label:'Invoice Belum Lunas', value:unpaidInvoices.length, icon:ICON_STAT_RECEIPT, deltaText: unpaidInvoices.length ? rupiah(unpaidTotal) : '', deltaUp:false },
         ];
-    cardsHtml = rows.map((r,i)=>renderStatCardHtml(r,i)).join('');
+    cardsHtml = bisaAksesSubModul('dashboard_kartu_statistik') ? rows.map((r,i)=>renderStatCardHtml(r,i)).join('') : '';
 
     const jobStatusCounts = {};
     MOCK_JOBS.forEach(j=>{ jobStatusCounts[j.status] = (jobStatusCounts[j.status]||0) + 1; });
@@ -3514,24 +3743,23 @@ function renderDashboard(roleId){
       { label:'Disetujui', value:jobStatusCounts['Disetujui']||0, color:'var(--sage)' },
     ];
 
-    extraHtml = `
-      <div class="grid grid-2" style="margin-bottom:20px;">
-        <div class="card">
-          <div class="section-title" style="font-size:13.5px;">Tren Pendapatan (6 Bulan Terakhir)</div>
-          ${renderBarChartSvg(revenueTrend6)}
-        </div>
-        <div class="card">
-          <div class="section-title" style="font-size:13.5px;">Distribusi Status Pekerjaan</div>
-          <div style="display:flex;gap:18px;align-items:center;">
-            ${renderDonutChartSvg(donutSegments)}
-            <div style="flex:1;">${renderDonutLegendHtml(donutSegments)}</div>
-          </div>
-        </div>
+    const trenCard = bisaAksesSubModul('dashboard_tren_pendapatan') ? `<div class="card">
+      <div class="section-title" style="font-size:13.5px;">Tren Pendapatan (6 Bulan Terakhir)</div>
+      ${renderBarChartSvg(revenueTrend6)}
+    </div>` : '';
+    const distribusiCard = bisaAksesSubModul('dashboard_distribusi_pekerjaan') ? `<div class="card">
+      <div class="section-title" style="font-size:13.5px;">Distribusi Status Pekerjaan</div>
+      <div style="display:flex;gap:18px;align-items:center;">
+        ${renderDonutChartSvg(donutSegments)}
+        <div style="flex:1;">${renderDonutLegendHtml(donutSegments)}</div>
       </div>
-      <div class="grid grid-2">
-        <div class="card"><div class="section-title" style="font-size:13.5px;">Agenda 7 Hari ke Depan</div>${renderDashboardAgendaWidget(false)}</div>
-        <div class="card"><div class="section-title" style="font-size:13.5px;">Aktivitas Terbaru</div>${renderDashboardActivityWidget(6)}</div>
-      </div>`;
+    </div>` : '';
+    const agendaCard = bisaAksesSubModul('dashboard_agenda') ? `<div class="card"><div class="section-title" style="font-size:13.5px;">Agenda 7 Hari ke Depan</div>${renderDashboardAgendaWidget(false)}</div>` : '';
+    const aktivitasCard = bisaAksesSubModul('dashboard_aktivitas') ? `<div class="card"><div class="section-title" style="font-size:13.5px;">Aktivitas Terbaru</div>${renderDashboardActivityWidget(6)}</div>` : '';
+
+    extraHtml = `
+      ${(trenCard || distribusiCard) ? `<div class="grid grid-2" style="margin-bottom:20px;">${trenCard}${distribusiCard}</div>` : ''}
+      ${(agendaCard || aktivitasCard) ? `<div class="grid grid-2">${agendaCard}${aktivitasCard}</div>` : ''}`;
 
   } else if (roleId === 'konsultan'){
     const myClients = MOCK_CLIENTS.filter(c=>c.konsultanEmail===myEmail);
@@ -3625,23 +3853,82 @@ function renderDashboard(roleId){
 }
 function renderModuleSettings(embedded){
   if (state.loading || !state.allModulesMatrix) return embedded ? `<div class="empty">Memuat data...</div>` : head('Manajemen Modul','Memuat data...','khusus super admin');
+  const subByParent = {};
+  (state.allSubModulesMatrix || []).forEach(sm => {
+    if (!subByParent[sm.parentId]) subByParent[sm.parentId] = [];
+    subByParent[sm.parentId].push(sm);
+  });
+
   const rowsHtml = state.allModulesMatrix.map(m=>{
+    const anak = subByParent[m.id] || [];
+    const expanded = !!state.moduleSettingsExpanded[m.id];
+    const chevron = anak.length
+      ? `<span onclick="toggleModuleExpand('${m.id}')" style="cursor:pointer;display:inline-block;width:14px;color:var(--ink-soft);">${expanded?'&#9660;':'&#9654;'}</span>`
+      : `<span style="display:inline-block;width:14px;"></span>`;
     const cells = ROLES.map(r=>{
       const val = m[r.id];
       const cls = m.core ? 'toggle locked' : `toggle ${val?'on':''}`;
       return `<td><button class="${cls}" ${m.core?'disabled':''} onclick="toggleModuleCell('${m.id}','${r.id}')"></button></td>`;
     }).join('');
-    return `<tr><td>${m.name}<span class="mod-desc">${m.desc}${m.core?' · fitur inti':''}</span></td>${cells}</tr>`;
+    const parentRow = `<tr><td>${chevron}${m.name}<span class="mod-desc">${m.desc}${m.core?' · fitur inti':''}${anak.length?` · ${anak.length} rincian`:''}</span></td>${cells}</tr>`;
+
+    const childRows = (expanded ? anak : []).map(sm=>{
+      const childCells = ROLES.map(r=>{
+        const val = sm[r.id];
+        return `<td><button class="toggle ${val?'on':''}" onclick="toggleSubModuleCell('${sm.id}','${r.id}')"></button></td>`;
+      }).join('');
+      return `<tr style="background:var(--bg);"><td style="padding-left:32px;font-size:11.5px;color:var(--ink-soft);">${sm.name}</td>${childCells}</tr>`;
+    }).join('');
+
+    return parentRow + childRows;
   }).join('');
+
   const bodyHtml = `
     <div class="matrix-wrap"><table class="matrix"><tr><th>Modul</th>${ROLES.map(r=>`<th>${r.name}</th>`).join('')}</tr>${rowsHtml}</table>
     <div class="legend">
       <span><span class="dot" style="background:var(--gold)"></span> Aktif</span>
       <span><span class="dot" style="background:#D9D5C6"></span> Nonaktif</span>
       <span><span class="dot" style="background:var(--navy-2)"></span> Fitur inti (terkunci, selalu aktif untuk semua role)</span>
-    </div></div>`;
+    </div>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin-top:10px;">Klik &#9654; di samping nama modul untuk mengatur rincian di dalamnya (tab/sub-tab tertentu), terpisah dari akses modul secara keseluruhan.</p>
+    </div>
+    ${renderUserOverrideSection()}`;
   return embedded ? bodyHtml : head('Manajemen Modul','Aktifkan atau nonaktifkan modul untuk tiap level user — semua kombinasi dapat diatur bebas','khusus super admin') + bodyHtml;
 }
+
+function renderUserOverrideSection(){
+  const userOptions = MOCK_USERS.map(u=>`<option value="${u.email}" ${state.overrideUserEmail===u.email?'selected':''}>${u.nama} (${roleName(u.role)})</option>`).join('');
+  let overrideBody = '';
+  if (state.overrideUserEmail && state.overrideUserData){
+    const user = MOCK_USERS.find(u=>u.email===state.overrideUserEmail);
+    const rows = (state.allSubModulesMatrix || []).map(sm=>{
+      const roleDefault = !!sm[user.role];
+      const punyaOverride = state.overrideUserData[sm.id] !== undefined;
+      const nilaiEfektif = punyaOverride ? state.overrideUserData[sm.id] : roleDefault;
+      return `<tr>
+        <td style="text-align:left;">${sm.name}<span class="mod-desc">Default role ${roleName(user.role)}: ${roleDefault?'Aktif':'Nonaktif'}${punyaOverride?' · ADA OVERRIDE':''}</span></td>
+        <td><button class="toggle ${nilaiEfektif?'on':''}" onclick="toggleUserOverrideCell('${sm.id}')"></button></td>
+        <td>${punyaOverride ? `<span onclick="resetUserOverrideCell('${sm.id}')" style="cursor:pointer;color:var(--slate);font-size:11.5px;text-decoration:underline;">Kembalikan ke default</span>` : `<span style="color:var(--ink-soft);font-size:11px;">mengikuti role</span>`}</td>
+      </tr>`;
+    }).join('');
+    overrideBody = `
+      <table class="matrix" style="margin-top:14px;">
+        <tr><th style="text-align:left;">Rincian Modul</th><th>Akses</th><th>Status</th></tr>
+        ${rows}
+      </table>`;
+  }
+  return `
+    <div class="matrix-wrap" style="margin-top:20px;">
+      <div class="section-title" style="font-size:13.5px;">Override Akses Per-Individu</div>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 12px;">Kecualikan 1 user tertentu dari aturan default role-nya — untuk rincian modul (tab/sub-tab) saja, bukan modul secara keseluruhan.</p>
+      <select onchange="pilihUserUntukOverride(this.value)" style="max-width:360px;width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;">
+        <option value="">— Pilih user —</option>
+        ${userOptions}
+      </select>
+      ${overrideBody}
+    </div>`;
+}
+
 function renderUserManagement(embedded){
   const userTableColumns = [
     { key:'nama', label:'Nama', searchable:true, sortValue:(u)=>u.nama.toLowerCase(), searchValue:(u)=>u.nama, cell:(u)=>{
@@ -3729,10 +4016,53 @@ function checkboxGroup(name, options, selected){
       <input type="checkbox" class="${name}" value="${opt}" ${selected&&selected.includes(opt)?'checked':''} style="width:auto;margin:0;">${opt}
     </label>`).join('');
 }
-function selectHtml(id, options, selected){
-  return `<select id="${id}" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;">
+function selectHtml(id, options, selected, onchange){
+  return `<select id="${id}" ${onchange?`onchange="${onchange}"`:''} style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;">
     ${options.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('')}
   </select>`;
+}
+
+// Bentuk Badan — daftar yang bisa bertambah, sama persis polanya dengan
+// Bidang Usaha di bawah — bukan lagi "Lainnya" + kolom sebutkan terpisah.
+function renderBentukBadanOptions(selected){
+  const opts = [...BENTUK_BADAN_OPTIONS].sort((a,b)=>a.localeCompare(b));
+  return `<option value="">— Pilih Bentuk Badan —</option>` +
+    opts.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('') +
+    `<option value="__ADD_NEW__">+ Tambah Baru...</option>`;
+}
+async function handleBentukBadanSelectChange(select){
+  if (select.value !== '__ADD_NEW__') return;
+  const baru = prompt('Ketik Bentuk Badan baru:');
+  if (!baru || !baru.trim()){ select.value = ''; return; }
+  const nama = baru.trim();
+  if (!BENTUK_BADAN_OPTIONS.some(o=>o.toLowerCase()===nama.toLowerCase())){
+    const result = await api.addBentukBadan(nama);
+    if (!result.success){ alert(result.message || 'Gagal menyimpan pilihan baru.'); select.value=''; return; }
+    BENTUK_BADAN_OPTIONS.push(nama);
+  }
+  select.innerHTML = renderBentukBadanOptions(nama);
+}
+
+// Bidang Usaha — daftar yang bisa bertambah. Opsi terakhir "+ Tambah Bidang
+// Usaha Baru..." memicu prompt sederhana untuk menambah pilihan baru,
+// tersimpan permanen ke Sheet supaya bisa dipilih lagi untuk klien berikutnya.
+function renderBidangUsahaOptions(selected){
+  const opts = [...BIDANG_USAHA_OPTIONS].sort((a,b)=>a.localeCompare(b));
+  return `<option value="">— Pilih Bidang Usaha —</option>` +
+    opts.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('') +
+    `<option value="__ADD_NEW__">+ Tambah Bidang Usaha Baru...</option>`;
+}
+async function handleBidangUsahaSelectChange(select){
+  if (select.value !== '__ADD_NEW__') return;
+  const baru = prompt('Ketik nama Bidang Usaha baru:');
+  if (!baru || !baru.trim()){ select.value = ''; return; }
+  const nama = baru.trim();
+  if (!BIDANG_USAHA_OPTIONS.some(o=>o.toLowerCase()===nama.toLowerCase())){
+    const result = await api.addBidangUsaha(nama);
+    if (!result.success){ alert(result.message || 'Gagal menyimpan pilihan baru.'); select.value=''; return; }
+    BIDANG_USAHA_OPTIONS.push(nama);
+  }
+  select.innerHTML = renderBidangUsahaOptions(nama);
 }
 
 function renderClientManagement(embedded){
@@ -3807,9 +4137,9 @@ function renderClientManagement(embedded){
 
           <div class="section-title" style="font-size:13px;margin-top:6px;">Detail Badan Usaha</div>
           <div id="cf-badan-section" style="display:${jenisWPNow==='Badan'?'grid':'none'};grid-template-columns:1fr 1fr;gap:0 16px;">
-            <div><label>Bentuk Badan</label>${selectHtml('cf-bentukBadan', BENTUK_BADAN_OPTIONS, f.bentukBadan)}</div>
+            <div><label>Bentuk Badan</label><select id="cf-bentukBadan" onchange="handleBentukBadanSelectChange(this)" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;">${renderBentukBadanOptions(f.bentukBadan)}</select></div>
             <div><label>Nomor Akta Pendirian</label><input type="text" id="cf-nomorAkta"></div>
-            <div><label>Bidang Usaha</label><input type="text" id="cf-bidangUsaha"></div>
+            <div><label>Bidang Usaha</label><select id="cf-bidangUsaha" onchange="handleBidangUsahaSelectChange(this)" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;">${renderBidangUsahaOptions(f.bidangUsaha)}</select></div>
             <div><label>Modal Disetor (Rp)</label><input type="number" id="cf-modalDisetor" min="0"></div>
             <div><label>Nama Penanggung Jawab</label><input type="text" id="cf-namaPenanggungJawab"></div>
             <div><label>NPWP Penanggung Jawab</label><input type="text" id="cf-npwpPenanggungJawab"></div>
@@ -4526,8 +4856,9 @@ function buildInvoiceDocumentHtml(inv){
   <\/script>
 </body></html>`;
 }
-function exportActivityLogExcel(){
-  const rows = MOCK_ACTIVITY_LOG.map((l, idx) => ({
+function exportActivityLogExcel(filterUser){
+  const sumber = filterUser ? MOCK_ACTIVITY_LOG.filter(l=>l.user===filterUser) : MOCK_ACTIVITY_LOG;
+  const rows = sumber.map((l, idx) => ({
     'No': idx + 1,
     'Tanggal': formatDDMMYY(l.tanggal),
     'Jam': l.waktu,
@@ -4535,7 +4866,7 @@ function exportActivityLogExcel(){
     'Aksi': l.aksi,
     'Detail': l.detail,
   }));
-  exportRowsToExcel('Log_Aktivitas.xlsx', rows);
+  exportRowsToExcel(filterUser ? `Log_Aktivitas_${filterUser.replace(/\s+/g,'_')}.xlsx` : 'Log_Aktivitas.xlsx', rows);
 }
 function renderActivityLog(embedded){
   const activityColumns = [
@@ -4545,11 +4876,36 @@ function renderActivityLog(embedded){
     { key:'aksi', label:'Aksi', searchable:true, sortValue:(l)=>l.aksi.toLowerCase(), searchValue:(l)=>l.aksi, cell:(l)=>l.aksi },
     { key:'detail', label:'Detail', searchable:true, searchValue:(l)=>l.detail, cell:(l)=>l.detail || '-' },
   ];
-  const bodyHtml = managedTableBlock('activity_log', activityColumns, () => MOCK_ACTIVITY_LOG, 'Cari user, aksi, atau detail...',
-      `<button class="btn-secondary" onclick="exportActivityLogExcel()">${fileIconSvg('#1D6F42','XLS')}<span class="btn-label">Export Excel</span></button>`) +
+  const namaUserUnik = [...new Set(MOCK_ACTIVITY_LOG.map(l=>l.user))].sort();
+  const tabsHtml = `<div class="tabs-row" style="margin-bottom:14px;">
+    <button class="tab-btn ${state.logAktivitasTab==='semua'?'active':''}" onclick="setLogAktivitasTab('semua')">Semua</button>
+    <button class="tab-btn ${state.logAktivitasTab==='peruser'?'active':''}" onclick="setLogAktivitasTab('peruser')">Filter per User</button>
+  </div>`;
+
+  let tabBodyHtml;
+  if (state.logAktivitasTab === 'peruser'){
+    const selectHtml = `<select onchange="setLogAktivitasUser(this.value)" style="max-width:320px;width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;">
+      <option value="">— Pilih user —</option>
+      ${namaUserUnik.map(nama=>`<option value="${nama}" ${state.logAktivitasSelectedUser===nama?'selected':''}>${nama}</option>`).join('')}
+    </select>`;
+    if (!state.logAktivitasSelectedUser){
+      tabBodyHtml = selectHtml + `<div class="empty">Pilih user di atas untuk melihat aktivitasnya saja.</div>`;
+    } else {
+      const dataUser = () => MOCK_ACTIVITY_LOG.filter(l => l.user === state.logAktivitasSelectedUser);
+      tabBodyHtml = selectHtml + managedTableBlock('activity_log_peruser', activityColumns, dataUser, 'Cari aksi atau detail...',
+        `<button class="btn-secondary" onclick="exportActivityLogExcel('${state.logAktivitasSelectedUser}')">${fileIconSvg('#1D6F42','XLS')}<span class="btn-label">Export Excel</span></button>`);
+    }
+  } else {
+    tabBodyHtml = managedTableBlock('activity_log', activityColumns, () => MOCK_ACTIVITY_LOG, 'Cari user, aksi, atau detail...',
+      `<button class="btn-secondary" onclick="exportActivityLogExcel()">${fileIconSvg('#1D6F42','XLS')}<span class="btn-label">Export Excel</span></button>`);
+  }
+
+  const bodyHtml = tabsHtml + tabBodyHtml +
     `<p style="font-size:11px;color:var(--ink-soft);margin-top:10px;">Log ini tercatat otomatis dan tersimpan permanen ke Google Sheets — mulai dari login, setiap aksi tambah/ubah/hapus data, sampai logout. Tidak hilang walau halaman di-refresh atau login dari device lain.</p>`;
   return embedded ? bodyHtml : head('Log Aktivitas', 'Jejak audit sungguhan — tercatat otomatis dari login, aksi CRUD, sampai logout') + bodyHtml;
 }
+function setLogAktivitasTab(tab){ state.logAktivitasTab = tab; render(); }
+function setLogAktivitasUser(nama){ state.logAktivitasSelectedUser = nama; render(); }
 function handleProfilePhotoChange(input){
   const file = input.files && input.files[0];
   if (!file) return;
@@ -4978,10 +5334,10 @@ function setAdministrasiTab(tab){
 function renderAdministrasiModule(){
   if (state.administrasiTab === 'modul' && !state.allModulesMatrix && !state.loading){ openModuleSettings(); }
   const tabsHtml = `<div class="tabs-row">
-    <button class="tab-btn ${state.administrasiTab==='modul'?'active':''}" onclick="setAdministrasiTab('modul')">Modul</button>
-    <button class="tab-btn ${state.administrasiTab==='user'?'active':''}" onclick="setAdministrasiTab('user')">User</button>
-    <button class="tab-btn ${state.administrasiTab==='sistem'?'active':''}" onclick="setAdministrasiTab('sistem')">Pengaturan</button>
-    <button class="tab-btn ${state.administrasiTab==='log'?'active':''}" onclick="setAdministrasiTab('log')">Sistem</button>
+    ${bisaAksesSubModul('admin_modul') ? `<button class="tab-btn ${state.administrasiTab==='modul'?'active':''}" onclick="setAdministrasiTab('modul')">Modul</button>` : ''}
+    ${bisaAksesSubModul('admin_user') ? `<button class="tab-btn ${state.administrasiTab==='user'?'active':''}" onclick="setAdministrasiTab('user')">User</button>` : ''}
+    ${bisaAksesSubModul('admin_sistem') ? `<button class="tab-btn ${state.administrasiTab==='sistem'?'active':''}" onclick="setAdministrasiTab('sistem')">Pengaturan</button>` : ''}
+    ${bisaAksesSubModul('admin_log') ? `<button class="tab-btn ${state.administrasiTab==='log'?'active':''}" onclick="setAdministrasiTab('log')">Sistem</button>` : ''}
   </div>`;
   let body;
   if (state.administrasiTab === 'modul') body = renderModuleSettings(true);
@@ -5050,8 +5406,8 @@ ambilUpdateTerakhirDariGithub();
 function setKeuanganTab(tab){ state.keuanganTab = tab; render(); }
 function renderKeuanganModule(){
   const roleId = state.session.role;
-  const canInvoice = ['superadmin','owner','direktur','admin','finance'].includes(roleId);
-  const canTaxReport = ['superadmin','owner','direktur','admin','konsultan','klien'].includes(roleId);
+  const canInvoice = ['superadmin','owner','direktur','admin','finance'].includes(roleId) && bisaAksesSubModul('keuangan_invoice');
+  const canTaxReport = ['superadmin','owner','direktur','admin','konsultan','klien'].includes(roleId) && bisaAksesSubModul('keuangan_pajak');
   if (state.keuanganTab === 'invoice' && !canInvoice) state.keuanganTab = 'pajak';
   if (state.keuanganTab === 'pajak' && !canTaxReport) state.keuanganTab = 'invoice';
 
@@ -5076,7 +5432,7 @@ function renderWajibPajakCategoryCards(){
     { label:'Firma', count: MOCK_CLIENTS.filter(c=>c.jenisWP==='Badan' && c.bentukBadan==='Firma').length, icon:ICON_STAT_BUILDING },
     { label:'Yayasan', count: MOCK_CLIENTS.filter(c=>c.jenisWP==='Badan' && c.bentukBadan==='Yayasan').length, icon:ICON_STAT_HEART },
     { label:'Koperasi', count: MOCK_CLIENTS.filter(c=>c.jenisWP==='Badan' && c.bentukBadan==='Koperasi').length, icon:ICON_STAT_USERS },
-    { label:'Lainnya', count: MOCK_CLIENTS.filter(c=>c.jenisWP==='Badan' && (!c.bentukBadan || c.bentukBadan==='Lainnya')).length, icon:ICON_STAT_DOTS },
+    { label:'Lainnya', count: MOCK_CLIENTS.filter(c=>c.jenisWP==='Badan' && !['PT','PT Perorangan','CV','Firma','Yayasan','Koperasi'].includes(c.bentukBadan)).length, icon:ICON_STAT_DOTS },
   ];
   const cardsHtml = categories.map((c,i)=>renderStatCardHtml({ label:c.label, value:c.count, icon:c.icon }, i)).join('');
   return `<div class="grid grid-4" style="margin-bottom:20px;">${cardsHtml}</div>`;
@@ -5836,7 +6192,7 @@ function renderShell(){
     : `<div class="seal">KP</div>`;
   return `${renderTopbar()}
   ${state.session.perluGantiPassword ? `
-  <div style="background:#FDF3E3;border-bottom:2px solid var(--gold);padding:9px 18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#5A4400;">
+  <div id="banner-ganti-password" style="background:#FDF3E3;border-bottom:2px solid var(--gold);padding:9px 18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#5A4400;">
     <span>&#9888; Anda login memakai <b>password sementara</b> — segera ganti dengan password pilihan Anda sendiri.</span>
     <button class="primary" type="button" onclick="setModule('profile')" style="width:auto;padding:5px 16px;font-size:12px;">Ganti Sekarang</button>
   </div>` : ''}
@@ -5931,7 +6287,26 @@ function render(){
   else if (state.gatePage === 'ajakanAktivasi') app.innerHTML = renderAjakanAktivasi();
   else if (state.gatePage === 'belumTerdaftar') app.innerHTML = renderBelumTerdaftar();
   else app.innerHTML = renderEmailGerbang();
+  sesuaikanPosisiSidebarMobile();
+  if (!state.session) mulaiAmbientWarnaLatar(); else hentikanAmbientWarnaLatar();
 }
+// Posisi sidebar & backdrop di mode mobile dihitung DINAMIS dari tinggi asli
+// topbar (+ banner "ganti password" kalau sedang tampil) — bukan angka piksel
+// tebakan tetap. Ini penting karena tinggi topbar bisa berubah-ubah (kutipan
+// berjalan yang wrap 1-2 baris, banner yang muncul/hilang, dst).
+function sesuaikanPosisiSidebarMobile(){
+  if (window.innerWidth > 768) return;
+  const topbar = document.querySelector('.topbar');
+  if (!topbar) return;
+  const banner = document.getElementById('banner-ganti-password');
+  const acuan = banner || topbar;
+  const bawah = Math.round(acuan.getBoundingClientRect().bottom);
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.querySelector('.sidebar-backdrop');
+  if (sidebar) sidebar.style.top = bawah + 'px';
+  if (backdrop) backdrop.style.top = bawah + 'px';
+}
+window.addEventListener('resize', sesuaikanPosisiSidebarMobile);
 
 // Bootstrap — ambil Pengaturan Sistem (termasuk status aktivasi/serialNumber) dari Sheet
 // SEBELUM halaman pertama ditampilkan, supaya konsisten dari device manapun diakses,
@@ -6116,7 +6491,19 @@ function mulaiAnimasiWarnaLatar(){
       clearInterval(intervalWarnaLatar); // sudah selesai (berhasil/gagal/pindah layar) -> berhenti
       intervalWarnaLatar = null;
     }
-  }, 2200); // sedikit lebih lama dari durasi transisi CSS (2s) supaya tiap transisi sempat selesai mulus dulu
+  }, 4200); // sedikit lebih lama dari durasi transisi CSS (4s) supaya tiap transisi sempat selesai mulus dulu
+}
+
+// Latar belakang otomatis bergeser warna PELAN dengan sendirinya selama di
+// layar sebelum login (tidak perlu diklik apa pun) — supaya tidak monoton.
+// Berhenti otomatis begitu sudah login (dipanggil dari render()).
+let intervalAmbientWarna = null;
+function mulaiAmbientWarnaLatar(){
+  if (intervalAmbientWarna) return; // sudah jalan, jangan dobel
+  intervalAmbientWarna = setInterval(animasikanWarnaLatarLogin, 11000); // pelan — tiap 11 detik
+}
+function hentikanAmbientWarnaLatar(){
+  if (intervalAmbientWarna){ clearInterval(intervalAmbientWarna); intervalAmbientWarna = null; }
 }
 
 // Timer detik di samping ikon koin — supaya kelihatan persis berapa lama tiap
