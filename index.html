@@ -1168,6 +1168,7 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   lupaPasswordSukses: false, lupaPasswordPesan: '', lupaPasswordEmail: '',
   logAktivitasTab: 'semua', logAktivitasSelectedUser: '',
   notulensiView: { tab:'kartu', search:'' },
+  telegramTestLoading: false,
   changelogOpen: false,
   telegramActivityMatrix: null, telegramGroupExpanded: {},
   notulensiForm: { open:false, step:'awal', mode:'add', waktuPilihan:'sekarang', clientIds:[], originalId:null,
@@ -5493,6 +5494,13 @@ async function simpanKonfigurasiBotTelegram(){
   else alert(result.message || 'Gagal menyimpan.');
   render();
 }
+async function testKirimPesanTelegram(){
+  state.telegramTestLoading = true; render();
+  const result = await callBackendUtama('kirimTestTelegram');
+  state.telegramTestLoading = false;
+  render();
+  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+}
 
 function renderPengaturanTelegram(){
   const totalAksi = TELEGRAM_AKSI_DEFS.reduce((s,g)=>s+g.aksi.length, 0);
@@ -5530,6 +5538,7 @@ function renderPengaturanTelegram(){
         <div><label>ID Grup Telegram Kantor</label><input type="text" id="tg-grup-id" value="${state.systemSettings.telegramGrupChatId||''}" placeholder="-1002345678901" style="font-family:var(--font-mono);font-size:11.5px;"></div>
       </div>
       <button class="btn-secondary" onclick="simpanKonfigurasiBotTelegram()" ${state.loading?'disabled':''}>${state.loading?'Menyimpan...':'Simpan Konfigurasi'}</button>
+      <button class="btn-secondary" onclick="testKirimPesanTelegram()" style="margin-left:8px;" ${state.telegramTestLoading?'disabled':''}>${state.telegramTestLoading?'Mengirim...':'\u2709 Test Kirim Pesan'}</button>
       <p style="font-size:10.5px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">Buat bot lewat @BotFather di Telegram untuk dapat Token ini. Setelah Bot Token diisi, staff bisa menghubungkan akun Telegram pribadinya lewat menu Profil Saya.</p>
     </div>
 
