@@ -799,6 +799,13 @@ function logActivity(aksi, detail){
   if (state.session && typeof callBackendUtama === 'function'){
     callBackendUtama('addActivityLog', { log: { user, aksi, detail: detail || '', tanggal: tgl, waktu: jam } }).catch(()=>{});
   }
+  // Kirim notifikasi Telegram di latar belakang kalau aktivitas ini diaktifkan
+  // di checklist — sama seperti pencatatan log di atas, tidak ditunggu (fire-and-forget)
+  // supaya tidak bikin aksi pengguna terasa lambat.
+  const cfgTelegram = telegramNotifConfig[aksi];
+  if (cfgTelegram && cfgTelegram.aktif && cfgTelegram.kirimGrup && typeof callBackendUtama === 'function'){
+    callBackendUtama('kirimNotifikasiAktivitasTelegram', { aksi, detail: detail || '', user }).catch(()=>{});
+  }
 }
 
 // URL Web App backend aplikasi utama (Tahap 1: Login + Users) — sungguhan, bukan simulasi lagi
@@ -943,6 +950,7 @@ async function muatSemuaDataAplikasi(email){
     muatOverrideSayaSendiri(email),
     api.getBidangUsahaList(),
     api.getBentukBadanList(),
+    api.getTelegramNotifSettings(),
   ]);
 }
 async function muatOverrideSayaSendiri(email){
