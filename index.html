@@ -380,6 +380,7 @@ const MODULE_DEFS = [
   {id:'dashboard', name:'Dashboard', desc:'Ringkasan aktivitas', core:true, roles:['superadmin','owner','direktur','admin','konsultan','klien','finance']},
   {id:'administrasi', name:'Administrasi', desc:'Manajemen modul, user, pengaturan sistem, dan log aktivitas', core:true, roles:['superadmin']},
   {id:'klien_pajak', name:'Daftar Klien Pajak', desc:'Data wajib pajak dan profil 360° tiap klien', core:false, roles:['superadmin','owner','direktur','admin','konsultan','finance']},
+  {id:'notulensi_rapat', name:'Notulensi Rapat', desc:'Catatan hasil rapat internal terkait klien — bisa melibatkan lebih dari satu klien sekaligus', core:false, roles:['superadmin','owner','direktur','admin','konsultan']},
   {id:'job_management', name:'Penugasan Pekerjaan', desc:'Buat dan kelola daftar pekerjaan tim', core:false, roles:['superadmin','admin']},
   {id:'calendar_agenda', name:'Agenda & Kalender', desc:'Kumpulan agenda dari semua modul + catatan pribadi', core:false, roles:['superadmin','owner','direktur','admin','konsultan','finance']},
   {id:'reminder_settings', name:'Buat Reminder Pekerjaan', desc:'Atur jadwal reminder kewajiban pajak per klien', core:false, roles:['superadmin','admin','konsultan']},
@@ -403,6 +404,9 @@ MODULE_DEFS.forEach(m=>{
 // MODULE_DEFS di atas, pola persis sama, cuma level di bawahnya. parentId dipakai
 // untuk mengelompokkan di UI "Pengaturan Modul - Rinci".
 const SUB_MODULE_DEFS = [
+  { id:'notulensi_tombol_tambah', parentId:'notulensi_rapat', name:'Tombol Catat Notulensi', roles:['superadmin','owner','direktur','admin','konsultan'] },
+  { id:'notulensi_tampilan_kartu', parentId:'notulensi_rapat', name:'Tampilan Kartu', roles:['superadmin','owner','direktur','admin','konsultan'] },
+  { id:'notulensi_tampilan_tabel', parentId:'notulensi_rapat', name:'Tampilan Tabel', roles:['superadmin','owner','direktur','admin','konsultan'] },
   { id:'dashboard_tombol_aksi', parentId:'dashboard', name:'Tombol Aksi Cepat', roles:['superadmin','owner','direktur','admin','konsultan','klien','finance'] },
   { id:'dashboard_kartu_statistik', parentId:'dashboard', name:'Kartu Statistik', roles:['superadmin','owner','direktur','admin','konsultan','klien','finance'] },
   { id:'dashboard_tren_pendapatan', parentId:'dashboard', name:'Widget: Tren Pendapatan', roles:['superadmin','owner','direktur'] },
@@ -416,6 +420,7 @@ const SUB_MODULE_DEFS = [
   { id:'klien_detail_reminder', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Reminder', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
   { id:'klien_detail_invoice', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Invoice', roles:['superadmin','owner','direktur','admin','finance'] },
   { id:'klien_detail_dokumen', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Dokumen', roles:['superadmin','owner','direktur','admin','konsultan','finance'] },
+  { id:'klien_detail_notulensi', parentId:'klien_pajak', name:'Detail Klien \u2192 sub-tab Notulensi Rapat', roles:['superadmin','owner','direktur','admin','konsultan'] },
   { id:'admin_modul', parentId:'administrasi', name:'Tab: Modul (matriks akses)', roles:['superadmin'] },
   { id:'admin_user', parentId:'administrasi', name:'Tab: User', roles:['superadmin'] },
   { id:'admin_sistem', parentId:'administrasi', name:'Tab: Pengaturan / Sistem', roles:['superadmin'] },
@@ -519,6 +524,7 @@ const BADAN_USAHA_SUBTYPE_OPTIONS = ['PT Umum','PT Perorangan','CV/Firma','Yayas
 const LAMA_REMINDER_OPTIONS = ['1','3','5','7','10','14'];
 
 let REMINDER_SEQ = 5;
+const MOCK_MEETING_MINUTES = []; // diisi dari Sheet saat login — tidak ada data contoh, murni fitur baru
 const MOCK_REMINDERS = [
   { id:'REM-0001', jenisJadwal:'Jadwal Rutin', wajibPajak:'Badan Usaha', badanUsahaSubtype:'PT Umum', tanggalMode:'Setiap Tanggal Ini', tanggalValue:'5',
     lamaReminderHari:'5', clientId:'CLI-0001', isiReminder:[1,3], selesaiTanggal:null },
@@ -703,18 +709,21 @@ const CALENDAR_TYPE_COLORS = {
   reminder: 'var(--gold)',
   invoice: 'var(--sage)',
   catatan: 'var(--navy)',
+  notulensi: '#7C5CBF',
 };
 const CALENDAR_TYPE_BG = {
   pekerjaan: '#DCE6EC',
   reminder: '#FDECC8',
   invoice: '#DCEEE0',
   catatan: '#DDE1EA',
+  notulensi: '#EBE3F7',
 };
 const CALENDAR_TYPE_LABELS = {
   pekerjaan: 'Pekerjaan',
   reminder: 'Reminder Pajak',
   invoice: 'Invoice',
   catatan: 'Catatan',
+  notulensi: 'Notulensi Rapat',
 };
 function logActivity(aksi, detail){
   const now = new Date();
@@ -810,6 +819,13 @@ async function muatUlangDaftarReminder(){
   data.reminders.forEach(r => MOCK_REMINDERS.push(r));
   return true;
 }
+async function muatUlangDaftarNotulensi(){
+  const data = await callBackendUtama('getAllMeetingMinutes');
+  if (!data.success) return false;
+  MOCK_MEETING_MINUTES.length = 0;
+  data.meetings.forEach(m => MOCK_MEETING_MINUTES.push(m));
+  return true;
+}
 async function muatUlangDaftarInvoice(){
   const data = await callBackendUtama('getAllInvoices');
   if (!data.success) return false;
@@ -861,6 +877,7 @@ async function muatSemuaDataAplikasi(email){
     muatUlangDaftarKlien(),
     muatUlangDaftarPekerjaan(),
     muatUlangDaftarReminder(),
+    muatUlangDaftarNotulensi(),
     muatUlangDaftarInvoice(),
     muatUlangDaftarDokumen(),
     muatUlangCatatanKalender(),
@@ -1020,6 +1037,22 @@ const api = {
     } catch (err) { return { success:false, message: err.message }; }
   },
 
+  async searchMeetingMinutes(query, clientId){
+    try {
+      return await callBackendUtama('searchMeetingMinutes', { query, clientId });
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+  async addMeetingMinutes(data){
+    try {
+      return await callBackendUtama('addMeetingMinutes', { data });
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+  async updateMeetingMinutes(id, data){
+    try {
+      return await callBackendUtama('updateMeetingMinutes', { id, data });
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+
   async addBentukBadan(nama){
     try {
       const data = await callBackendUtama('addBentukBadan', { nama });
@@ -1046,6 +1079,9 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   profileError: '', profileSukses: '', profileLoading: false,
   lupaPasswordSukses: false, lupaPasswordPesan: '', lupaPasswordEmail: '',
   logAktivitasTab: 'semua', logAktivitasSelectedUser: '',
+  notulensiView: { tab:'kartu', search:'' },
+  notulensiForm: { open:false, step:'awal', mode:'add', waktuPilihan:'sekarang', clientIds:[], originalId:null,
+    cariQuery:'', cariHasil:[], presetClientId:null, actionItems:[] },
   gatePage: 'email', emailGerbang: '',
   sidebarOpen: window.innerWidth > 768,
   userMenuOpen: false,
@@ -1078,7 +1114,7 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   calendarView:{
     mode:'agenda',
     ownerFilter:'semua',
-    filters:{ pekerjaan:true, reminder:true, invoice:true, catatan:true },
+    filters:{ pekerjaan:true, reminder:true, invoice:true, catatan:true, notulensi:true },
     monthCursor: new Date(2026, 6, 1),
     selectedDate: null,
     noteForm:{ open:false, mode:'add', originalId:null },
@@ -3107,6 +3143,7 @@ function renderClientMonitoring(embedded){
     ${bisaAksesSubModul('klien_detail_reminder') ? `<button class="tab-btn ${state.clientMonitoring.tab==='reminder'?'active':''}" onclick="setMonitoringTab('reminder')">Reminder</button>` : ''}
     ${bisaAksesSubModul('klien_detail_invoice') ? `<button class="tab-btn ${state.clientMonitoring.tab==='invoice'?'active':''}" onclick="setMonitoringTab('invoice')">Invoice</button>` : ''}
     ${bisaAksesSubModul('klien_detail_dokumen') ? `<button class="tab-btn ${state.clientMonitoring.tab==='dokumen'?'active':''}" onclick="setMonitoringTab('dokumen')">Dokumen</button>` : ''}
+    ${bisaAksesSubModul('klien_detail_notulensi') ? `<button class="tab-btn ${state.clientMonitoring.tab==='notulensi'?'active':''}" onclick="setMonitoringTab('notulensi')">Notulensi Rapat</button>` : ''}
   </div>`;
 
   let tabContent = '';
@@ -3169,6 +3206,9 @@ function renderClientMonitoring(embedded){
 
   } else if (state.clientMonitoring.tab === 'dokumen'){
     tabContent = renderDokumenTab(c);
+
+  } else if (state.clientMonitoring.tab === 'notulensi'){
+    tabContent = renderNotulensiTabUntukKlien(c);
   }
 
   const fullBody = selectorHtml + headerHtml + statsHtml + tabsHtml + tabContent;
@@ -3472,6 +3512,7 @@ const MODULE_ICONS = {
   dashboard: NAV_ICON_SVG + '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   administrasi: NAV_ICON_SVG + '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   klien_pajak: NAV_ICON_SVG + '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  notulensi_rapat: NAV_ICON_SVG + '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="15" y2="14"/><path d="M9 18h3"/></svg>',
   job_management: NAV_ICON_SVG + '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>',
   calendar_agenda: NAV_ICON_SVG + '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
   reminder_settings: NAV_ICON_SVG + '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
@@ -5054,6 +5095,14 @@ function getAllCalendarEvents(){
     events.push({ tanggal:n.tanggal, waktu:n.waktu||'', tipe:'catatan', judul:n.judul, deskripsi:n.deskripsi, id:n.id, selesai:n.selesai, target:null, mine });
   });
 
+  MOCK_MEETING_MINUTES.forEach(m=>{
+    const namaKlien = m.clientNames.join(', ');
+    const mine = m.dibuatOleh===myEmail || m.diperbaruiOleh===myEmail ||
+      m.clientIds.some(cid => { const cl = MOCK_CLIENTS.find(c=>c.id===cid); return cl && cl.konsultanEmail === myEmail; });
+    if (m.tanggalRencana) events.push({ tanggal:m.tanggalRencana, waktu:m.waktu||'', tipe:'notulensi', judul:`Rencana Rapat: ${m.judul} — ${namaKlien}`, target:'notulensi_rapat', mine });
+    if (m.tanggalEksekusi && m.tanggalEksekusi !== m.tanggalRencana) events.push({ tanggal:m.tanggalEksekusi, waktu:m.waktu||'', tipe:'notulensi', judul:`Rapat Terlaksana: ${m.judul} — ${namaKlien}`, target:'notulensi_rapat', mine });
+  });
+
   return events;
 }
 function getFilteredCalendarEvents(){
@@ -5451,6 +5500,372 @@ function renderKlienPajakModule(){
   const categoryCardsHtml = state.klienPajakTab === 'data' ? renderWajibPajakCategoryCards() : '';
   const body = state.klienPajakTab === 'data' ? renderClientManagement(true) : renderClientMonitoring(true);
   return head('Daftar Klien Pajak', 'Data wajib pajak dan profil 360° tiap klien — dalam satu tempat') + categoryCardsHtml + tabsHtml + body;
+}
+
+// ============================================================
+// NOTULENSI RAPAT — modul mandiri, form berbentuk modal (bisa dipicu dari
+// modul ini sendiri ATAU dari Profil Klien lewat presetClientId).
+// Alur: Langkah 1 (Kapan? + Baru/Sebelumnya? + Klien) -> kalau Sebelumnya,
+// Langkah Cari -> Langkah Isi (form lengkap, dipakai sama untuk Baru & Edit).
+// ============================================================
+
+function hitungStatNotulensi(){
+  const total = MOCK_MEETING_MINUTES.length;
+  const terlaksana = MOCK_MEETING_MINUTES.filter(m=>m.status==='Terlaksana').length;
+  return { total, terlaksana, direncanakan: total - terlaksana };
+}
+
+function setNotulensiTab(tab){ state.notulensiView.tab = tab; render(); }
+
+function openNotulensiForm(presetClientId){
+  state.notulensiForm = { open:true, step:'awal', mode:'add', waktuPilihan:'sekarang', jenisPilihan:'baru',
+    clientIds: presetClientId ? [presetClientId] : [], originalId:null,
+    cariQuery:'', cariHasil:[], presetClientId: presetClientId || null, actionItems:[] };
+  render();
+}
+function closeNotulensiForm(){ state.notulensiForm.open = false; render(); }
+
+function toggleKlienTerkaitChip(clientId){
+  const f = state.notulensiForm;
+  if (f.clientIds.includes(clientId)) f.clientIds = f.clientIds.filter(id=>id!==clientId);
+  else f.clientIds.push(clientId);
+  render();
+}
+function tambahKlienTerkaitDariSelect(select){
+  const val = select.value;
+  if (val && !state.notulensiForm.clientIds.includes(val)) state.notulensiForm.clientIds.push(val);
+  select.value = '';
+  render();
+}
+function pilihWaktuNotulensi(val){ state.notulensiForm.waktuPilihan = val; render(); }
+function pilihJenisNotulensi(val){ state.notulensiForm.jenisPilihan = val; render(); }
+
+async function lanjutDariLangkahAwal(){
+  const f = state.notulensiForm;
+  if (!f.clientIds.length){ alert('Pilih minimal 1 klien terkait.'); return; }
+  if (f.jenisPilihan === 'baru'){
+    f.actionItems = [];
+    f.step = 'isi';
+    render();
+  } else {
+    f.step = 'cari';
+    render();
+    cariNotulensiSebelumnya('');
+  }
+}
+function kembaliKeLangkahAwal(){ state.notulensiForm.step = 'awal'; render(); }
+
+async function cariNotulensiSebelumnya(query){
+  state.notulensiForm.cariQuery = query;
+  const clientId = state.notulensiForm.clientIds[0] || null;
+  const result = await api.searchMeetingMinutes(query, clientId);
+  if (result.success){ state.notulensiForm.cariHasil = result.meetings; render(); }
+}
+
+function pilihNotulensiUntukEdit(id){
+  const m = MOCK_MEETING_MINUTES.find(m=>m.id===id);
+  if (!m) return;
+  const f = state.notulensiForm;
+  f.mode = 'edit'; f.originalId = id; f.clientIds = [...m.clientIds];
+  f.actionItems = m.actionItems.map(it=>({...it}));
+  f.step = 'isi';
+  render();
+}
+
+function tambahBarisTindakLanjutNotulensi(){
+  state.notulensiForm.actionItems.push({ item:'', pic:'', tenggat:'', selesai:false });
+  render();
+}
+function hapusBarisTindakLanjutNotulensi(idx){
+  state.notulensiForm.actionItems.splice(idx, 1);
+  render();
+}
+function updateTindakLanjutField(idx, field, value){
+  state.notulensiForm.actionItems[idx][field] = value;
+}
+function toggleTindakLanjutSelesaiNotulensi(idx){
+  state.notulensiForm.actionItems[idx].selesai = !state.notulensiForm.actionItems[idx].selesai;
+  render();
+}
+
+async function handleNotulensiFormSubmit(ev){
+  ev.preventDefault();
+  const f = state.notulensiForm;
+  const judul = getFieldVal('nf-judul');
+  if (!judul.trim()){ alert('Judul rapat wajib diisi.'); return; }
+  const agenda = getFieldVal('nf-agenda');
+  if (!agenda.trim()){ alert('Agenda wajib diisi.'); return; }
+
+  const tanggalRencana = f.mode==='add' ? (f.waktuPilihan==='sekarang' ? formatTanggalHariIniISO() : getFieldVal('nf-tanggalRencana')) : (MOCK_MEETING_MINUTES.find(m=>m.id===f.originalId)||{}).tanggalRencana;
+  const tanggalEksekusi = f.mode==='add' ? (f.waktuPilihan==='sekarang' ? formatTanggalHariIniISO() : '') : getFieldVal('nf-tanggalEksekusi');
+
+  const data = {
+    judul, clientIds: f.clientIds,
+    tanggalRencana: tanggalRencana, tanggalEksekusi: tanggalEksekusi,
+    waktu: getFieldVal('nf-waktu'), lokasi: getFieldVal('nf-lokasi'),
+    pesertaInternal: getFieldVal('nf-pesertaInternal'), pesertaKlien: getFieldVal('nf-pesertaKlien'),
+    agenda: agenda, hasilPembahasan: getFieldVal('nf-hasilPembahasan'), keputusan: getFieldVal('nf-keputusan'),
+    actionItems: f.actionItems.filter(it=>it.item && it.item.trim()),
+  };
+
+  state.loading = true; render();
+  let result;
+  if (f.mode === 'add'){
+    data.dibuatOleh = state.session.email;
+    result = await api.addMeetingMinutes(data);
+  } else {
+    data.diperbaruiOleh = state.session.email;
+    result = await api.updateMeetingMinutes(f.originalId, data);
+  }
+  state.loading = false;
+  if (!result.success){ alert(result.message || 'Gagal menyimpan notulensi.'); render(); return; }
+
+  await muatUlangDaftarNotulensi();
+  logActivity(f.mode==='add' ? 'Tambah Notulensi' : 'Ubah Notulensi', judul);
+  closeNotulensiForm();
+}
+
+function formatTanggalHariIniISO(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function notulensiStatusBadge(status){
+  const on = status === 'Terlaksana';
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700;
+    background:${on?'#E3F6EC':'#FDF3E3'};color:${on?'var(--sage,#2FA36B)':'var(--gold)'};border:1px solid ${on?'#2FA36B':'var(--gold)'};">
+    ${status}</span>`;
+}
+function notulensiProgressText(m){
+  if (!m.actionItems.length) return 'Tidak ada tindak lanjut';
+  const selesai = m.actionItems.filter(it=>it.selesai).length;
+  return `${selesai}/${m.actionItems.length} tindak lanjut selesai`;
+}
+
+function renderNotulensiKartu(list){
+  if (!list.length) return `<div class="empty">Belum ada notulensi.</div>`;
+  return `<div class="grid grid-2">${list.map(m=>`
+    <div class="card" style="cursor:pointer;" onclick="bukaDetailNotulensi('${m.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="font-weight:700;color:var(--navy);font-size:13.5px;">${m.judul}</div>
+        ${notulensiStatusBadge(m.status)}
+      </div>
+      <div style="color:var(--gold);font-size:12px;font-weight:600;margin-top:4px;">${m.clientNames.join(', ')}</div>
+      <div style="color:var(--ink-soft);font-size:11.5px;margin-top:2px;">${formatDDMMYY(m.tanggalEksekusi || m.tanggalRencana)}</div>
+      <div style="color:var(--ink-soft);font-size:11px;font-style:italic;margin-top:6px;">${notulensiProgressText(m)}</div>
+    </div>`).join('')}</div>`;
+}
+function renderNotulensiTabel(list){
+  const columns = [
+    { key:'judul', label:'Judul Rapat', searchable:true, searchValue:(m)=>m.judul, cell:(m)=>`<span onclick="bukaDetailNotulensi('${m.id}')" style="cursor:pointer;color:var(--navy);font-weight:600;text-decoration:underline;">${m.judul}</span>` },
+    { key:'klien', label:'Klien', searchable:true, searchValue:(m)=>m.clientNames.join(' '), cell:(m)=>m.clientNames.join(', ') },
+    { key:'tanggal', label:'Tanggal', searchable:false, sortValue:(m)=>m.tanggalEksekusi||m.tanggalRencana, cell:(m)=>formatDDMMYY(m.tanggalEksekusi||m.tanggalRencana) },
+    { key:'progress', label:'Tindak Lanjut', searchable:false, cell:(m)=>notulensiProgressText(m) },
+    { key:'status', label:'Status', searchable:false, cell:(m)=>notulensiStatusBadge(m.status) },
+  ];
+  return managedTableBlock('notulensi_tabel', columns, () => MOCK_MEETING_MINUTES, 'Cari judul atau klien...', '');
+}
+function bukaDetailNotulensi(id){
+  state.notulensiForm = { open:true, step:'isi', mode:'edit', waktuPilihan:'sekarang', jenisPilihan:'sebelumnya',
+    clientIds:[], originalId:id, cariQuery:'', cariHasil:[], presetClientId:null, actionItems:[] };
+  pilihNotulensiUntukEdit(id);
+}
+
+function renderNotulensiTabUntukKlien(c){
+  const milikKlien = MOCK_MEETING_MINUTES.filter(m=>m.clientIds.includes(c.id));
+  const terlaksana = milikKlien.filter(m=>m.status==='Terlaksana').length;
+  const tombolTambah = bisaAksesSubModul('notulensi_tombol_tambah')
+    ? `<button class="primary" style="width:auto;padding:8px 16px;" onclick="openNotulensiForm('${c.id}')">+ Catat Notulensi</button>` : '';
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--ink-soft);">${milikKlien.length} notulensi tercatat untuk klien ini &middot; ${terlaksana} Terlaksana, ${milikKlien.length-terlaksana} Direncanakan</div>
+      ${tombolTambah}
+    </div>
+    ${renderNotulensiKartu(milikKlien)}
+    ${renderNotulensiFormModal()}`;
+}
+
+function renderNotulensiModule(roleId){
+  const stat = hitungStatNotulensi();
+  const bisaKartu = bisaAksesSubModul('notulensi_tampilan_kartu');
+  const bisaTabel = bisaAksesSubModul('notulensi_tampilan_tabel');
+  if (state.notulensiView.tab==='kartu' && !bisaKartu) state.notulensiView.tab = 'tabel';
+  if (state.notulensiView.tab==='tabel' && !bisaTabel) state.notulensiView.tab = 'kartu';
+
+  const statCardsHtml = `<div class="grid grid-3" style="margin-bottom:20px;">${[
+    { label:'Total Notulensi', value:stat.total, icon:ICON_STAT_DOC },
+    { label:'Sudah Terlaksana', value:stat.terlaksana, icon:ICON_STAT_TASK },
+    { label:'Masih Direncanakan', value:stat.direncanakan, icon:ICON_STAT_BELL },
+  ].map((r,i)=>renderStatCardHtml(r,i)).join('')}</div>`;
+
+  const tombolTambah = bisaAksesSubModul('notulensi_tombol_tambah')
+    ? `<button class="primary" style="width:auto;padding:8px 16px;" onclick="openNotulensiForm()">+ Catat Notulensi</button>` : '';
+
+  const tabsHtml = (bisaKartu || bisaTabel) ? `<div class="tabs-row" style="margin-bottom:16px;">
+    ${bisaKartu ? `<button class="tab-btn ${state.notulensiView.tab==='kartu'?'active':''}" onclick="setNotulensiTab('kartu')">Kartu</button>` : ''}
+    ${bisaTabel ? `<button class="tab-btn ${state.notulensiView.tab==='tabel'?'active':''}" onclick="setNotulensiTab('tabel')">Tabel</button>` : ''}
+  </div>` : '';
+
+  const listHtml = state.notulensiView.tab==='kartu' ? renderNotulensiKartu(MOCK_MEETING_MINUTES) : renderNotulensiTabel(MOCK_MEETING_MINUTES);
+
+  return head('Notulensi Rapat', 'Catatan hasil rapat internal terkait klien — bisa melibatkan lebih dari satu klien sekaligus') +
+    `<div style="display:flex;justify-content:flex-end;margin-bottom:14px;">${tombolTambah}</div>` +
+    statCardsHtml + tabsHtml + listHtml + renderNotulensiFormModal();
+}
+
+function renderNotulensiFormModal(){
+  const f = state.notulensiForm;
+  if (!f.open) return '';
+  let stepHtml;
+  if (f.step === 'awal') stepHtml = renderNotulensiLangkahAwal();
+  else if (f.step === 'cari') stepHtml = renderNotulensiLangkahCari();
+  else stepHtml = renderNotulensiLangkahIsi();
+
+  return `<div class="doc-modal-backdrop" onclick="if(event.target===this) closeNotulensiForm()">
+    <div class="doc-modal-box" style="max-width:760px;">
+      <button class="doc-modal-close" onclick="closeNotulensiForm()" title="Tutup">&times;</button>
+      ${stepHtml}
+    </div>
+  </div>`;
+}
+
+function renderNotulensiLangkahAwal(){
+  const f = state.notulensiForm;
+  const pill = (active, color) => active ? `border:2px solid ${color};background:${color}14;` : `border:1px solid var(--border);background:white;`;
+  const klienBelumDipilih = MOCK_CLIENTS.filter(c=>!f.clientIds.includes(c.id));
+  return `
+    <div class="section-title">Catat Notulensi Rapat</div>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:16px;">Langkah 1 dari 2 — tentukan dulu jenis pencatatannya</p>
+
+    <label style="font-size:12px;font-weight:600;">1. Rapat ini kapan?</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 16px;">
+      <div style="padding:12px;border-radius:8px;cursor:pointer;${pill(f.waktuPilihan==='sekarang','#2FA36B')}" onclick="pilihWaktuNotulensi('sekarang')">
+        <div style="font-weight:700;font-size:13px;">Sekarang (Hari Ini)</div>
+        <div style="font-size:11px;color:var(--ink-soft);">Tanggal otomatis diisi hari ini</div>
+      </div>
+      <div style="padding:12px;border-radius:8px;cursor:pointer;${pill(f.waktuPilihan==='nanti','#2E7D8C')}" onclick="pilihWaktuNotulensi('nanti')">
+        <div style="font-weight:700;font-size:13px;">Rencanakan untuk Nanti</div>
+        <div style="font-size:11px;color:var(--ink-soft);">Pilih tanggal ke depan sendiri</div>
+      </div>
+    </div>
+
+    <label style="font-size:12px;font-weight:600;">2. Notulensi Baru atau Sebelumnya?</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 16px;">
+      <div style="padding:12px;border-radius:8px;cursor:pointer;${pill(f.jenisPilihan==='baru','#7C5CBF')}" onclick="pilihJenisNotulensi('baru')">
+        <div style="font-weight:700;font-size:13px;">Buat Baru</div>
+        <div style="font-size:11px;color:var(--ink-soft);">Mulai catatan rapat dari awal</div>
+      </div>
+      <div style="padding:12px;border-radius:8px;cursor:pointer;${pill(f.jenisPilihan==='sebelumnya','#B8862B')}" onclick="pilihJenisNotulensi('sebelumnya')">
+        <div style="font-weight:700;font-size:13px;">Pilih yang Sudah Ada</div>
+        <div style="font-size:11px;color:var(--ink-soft);">Lanjutkan/update notulensi lama</div>
+      </div>
+    </div>
+
+    <label style="font-size:12px;font-weight:600;">Klien Terkait <span style="color:#C0392B;">*</span></label>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0 16px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+      ${f.clientIds.map(cid=>{ const c = MOCK_CLIENTS.find(c=>c.id===cid); return `<span style="background:#FDF3E3;border:1px solid var(--gold);color:var(--gold);border-radius:20px;padding:4px 10px;font-size:11.5px;font-weight:600;">${c?c.nama:cid} <span style="cursor:pointer;" onclick="toggleKlienTerkaitChip('${cid}')">&times;</span></span>`; }).join('')}
+      <select onchange="tambahKlienTerkaitDariSelect(this)" style="border:none;font-size:12px;min-width:160px;flex:1;">
+        <option value="">+ Tambah klien lain...</option>
+        ${klienBelumDipilih.map(c=>`<option value="${c.id}">${c.nama}</option>`).join('')}
+      </select>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+      <button type="button" class="btn-secondary" onclick="closeNotulensiForm()">Batal</button>
+      <button type="button" class="primary" style="width:auto;padding:9px 20px;" onclick="lanjutDariLangkahAwal()">Lanjutkan</button>
+    </div>`;
+}
+
+function renderNotulensiLangkahCari(){
+  const f = state.notulensiForm;
+  return `
+    <div class="section-title">Pilih Notulensi Sebelumnya</div>
+    <input type="text" placeholder="Cari berdasarkan ID atau Judul Rapat..." value="${f.cariQuery}"
+      oninput="cariNotulensiSebelumnya(this.value)" style="width:100%;margin-bottom:14px;">
+    ${!f.cariHasil.length ? `<div class="empty">Tidak ada hasil.</div>` : f.cariHasil.map(m=>`
+      <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;"
+           onclick="pilihNotulensiUntukEdit('${m.id}')">
+        <div>
+          <div style="font-weight:700;font-size:13px;color:var(--navy);">${m.judul}</div>
+          <div style="font-size:11px;color:var(--ink-soft);font-family:var(--font-mono);">${m.id} · ${formatDDMMYY(m.tanggalEksekusi||m.tanggalRencana)}</div>
+          <div style="font-size:11px;color:var(--ink-soft);font-style:italic;">${notulensiProgressText(m)}</div>
+        </div>
+        ${notulensiStatusBadge(m.status)}
+      </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;margin-top:14px;">
+      <button type="button" class="btn-secondary" onclick="kembaliKeLangkahAwal()">&larr; Kembali</button>
+      <button type="button" class="btn-secondary" onclick="closeNotulensiForm()">Batal</button>
+    </div>`;
+}
+
+function renderNotulensiLangkahIsi(){
+  const f = state.notulensiForm;
+  const existing = f.mode==='edit' ? (MOCK_MEETING_MINUTES.find(m=>m.id===f.originalId) || {}) : {};
+  const tanggalOtomatis = f.mode==='add' && f.waktuPilihan==='sekarang';
+
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="section-title" style="margin-bottom:0;">${f.mode==='add' ? 'Catat Notulensi Rapat' : 'Edit Notulensi — Lanjutan'}</div>
+      ${f.mode==='edit' ? `<span style="font-family:var(--font-mono);font-size:11px;color:var(--slate,#2E7D8C);border:1px solid var(--slate,#2E7D8C);border-radius:20px;padding:3px 10px;">${f.originalId}</span>` : ''}
+    </div>
+    <form onsubmit="handleNotulensiFormSubmit(event)">
+      <label>Klien Terkait</label>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:14px;">
+        ${f.clientIds.map(cid=>{ const c=MOCK_CLIENTS.find(c=>c.id===cid); return `<span style="background:#FDF3E3;border:1px solid var(--gold);color:var(--gold);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:600;margin-right:6px;">${c?c.nama:cid}</span>`; }).join('')}
+      </div>
+
+      <label>Judul Rapat *</label>
+      <input type="text" id="nf-judul" value="${existing.judul||''}" placeholder="Contoh: Evaluasi Internal Penanganan PT Sinar Abadi" required>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+        <div>
+          <label>Tanggal ${f.mode==='add'?'Rencana':'Sesi Ini'}</label>
+          ${tanggalOtomatis
+            ? `<div style="padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;margin-bottom:14px;background:var(--bg);color:var(--navy);font-weight:600;">${formatDDMMYY(formatTanggalHariIniISO())} (otomatis, hari ini)</div>`
+            : `<input type="date" id="nf-tanggalRencana" value="${existing.tanggalRencana||''}">`}
+        </div>
+        <div><label>Waktu</label><input type="text" id="nf-waktu" value="${existing.waktu||''}" placeholder="10:00 - 11:00"></div>
+      </div>
+
+      ${f.mode==='edit' ? `<label>Tanggal Pelaksanaan (Eksekusi)</label><input type="date" id="nf-tanggalEksekusi" value="${existing.tanggalEksekusi||''}">` : ''}
+
+      <label>Lokasi / Media</label>
+      <input type="text" id="nf-lokasi" value="${existing.lokasi||''}" placeholder="Kantor Klien / Kantor Kami / Online">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+        <div><label>Peserta Internal (Kantor Kami)</label><input type="text" id="nf-pesertaInternal" value="${existing.pesertaInternal||''}" placeholder="Nama staff..."></div>
+        <div><label>Peserta Klien <span style="font-size:10.5px;color:var(--ink-soft);font-style:italic;">(opsional)</span></label><input type="text" id="nf-pesertaKlien" value="${existing.pesertaKlien||''}" placeholder="Kosongkan kalau tidak ada"></div>
+      </div>
+
+      <label>Agenda / Pokok Bahasan *</label>
+      <textarea id="nf-agenda" rows="3" required>${existing.agenda||''}</textarea>
+
+      <label>Hasil Pembahasan / Poin Diskusi</label>
+      <textarea id="nf-hasilPembahasan" rows="3">${existing.hasilPembahasan||''}</textarea>
+
+      <label>Keputusan / Kesimpulan</label>
+      <textarea id="nf-keputusan" rows="2">${existing.keputusan||''}</textarea>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+        <label style="margin-bottom:0;">Tindak Lanjut (Action Items)</label>
+        <span onclick="tambahBarisTindakLanjutNotulensi()" style="cursor:pointer;color:var(--gold);font-size:11.5px;font-weight:700;">+ Tambah Baris</span>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0 16px;">
+        ${!f.actionItems.length ? `<div style="font-size:11.5px;color:var(--ink-soft);font-style:italic;">Belum ada tindak lanjut.</div>` :
+          f.actionItems.map((it,idx)=>`
+          <div style="display:grid;grid-template-columns:24px 1fr 120px 130px 24px;gap:6px;align-items:center;margin-bottom:6px;">
+            <input type="checkbox" ${it.selesai?'checked':''} onchange="toggleTindakLanjutSelesaiNotulensi(${idx})" title="Selesai?">
+            <input type="text" value="${it.item}" oninput="updateTindakLanjutField(${idx},'item',this.value)" placeholder="Item tindak lanjut" style="margin-bottom:0;font-size:12px;padding:6px 8px;">
+            <input type="text" value="${it.pic}" oninput="updateTindakLanjutField(${idx},'pic',this.value)" placeholder="PIC" style="margin-bottom:0;font-size:12px;padding:6px 8px;">
+            <input type="date" value="${it.tenggat}" oninput="updateTindakLanjutField(${idx},'tenggat',this.value)" style="margin-bottom:0;font-size:12px;padding:6px 8px;">
+            <span onclick="hapusBarisTindakLanjutNotulensi(${idx})" style="cursor:pointer;color:#C0392B;text-align:center;">&times;</span>
+          </div>`).join('')}
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <button type="button" class="btn-secondary" onclick="closeNotulensiForm()">Batal</button>
+        <button type="submit" class="primary" style="width:auto;padding:9px 20px;" ${state.loading?'disabled':''}>${state.loading?'Menyimpan...':(f.mode==='add'?'Simpan Notulensi':'Simpan Perubahan')}</button>
+      </div>
+    </form>`;
 }
 
 const CONTENT_MAP = {
