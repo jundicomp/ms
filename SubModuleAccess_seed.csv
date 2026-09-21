@@ -1,0 +1,24 @@
+subModuleId,subModuleName,parentModuleId,superadmin,owner,direktur,admin,konsultan,klien,finance
+dashboard_tombol_aksi,Tombol Aksi Cepat,dashboard,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE
+dashboard_kartu_statistik,Kartu Statistik,dashboard,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE
+dashboard_tren_pendapatan,Widget: Tren Pendapatan,dashboard,TRUE,TRUE,TRUE,FALSE,FALSE,FALSE,FALSE
+dashboard_distribusi_pekerjaan,Widget: Distribusi Status Pekerjaan,dashboard,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE,FALSE
+dashboard_agenda,Widget: Agenda 7 Hari ke Depan,dashboard,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE
+dashboard_aktivitas,Widget: Aktivitas Terbaru,dashboard,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE
+klien_profil_wp,Tab: Profil Wajib Pajak,klien_pajak,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,TRUE
+klien_tabel,Tab: Tabel Klien,klien_pajak,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,TRUE
+klien_detail_ringkasan,Detail Klien -> sub-tab Ringkasan,klien_pajak,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,TRUE
+klien_detail_pekerjaan,Detail Klien -> sub-tab Pekerjaan,klien_pajak,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,TRUE
+klien_detail_reminder,Detail Klien -> sub-tab Reminder,klien_pajak,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,TRUE
+klien_detail_invoice,Detail Klien -> sub-tab Invoice,klien_pajak,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE,TRUE
+klien_detail_dokumen,Detail Klien -> sub-tab Dokumen,klien_pajak,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,TRUE
+klien_detail_notulensi,Detail Klien -> sub-tab Notulensi Rapat,klien_pajak,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE
+admin_modul,Tab: Modul (matriks akses),administrasi,TRUE,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE
+admin_user,Tab: User,administrasi,TRUE,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE
+admin_sistem,Tab: Pengaturan / Sistem,administrasi,TRUE,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE
+admin_log,Tab: Log Aktivitas,administrasi,TRUE,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE
+keuangan_invoice,Tab: Invoice,keuangan,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE,TRUE
+keuangan_pajak,Tab: Laporan Pajak,keuangan,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE
+notulensi_tombol_tambah,Tombol Catat Notulensi,notulensi_rapat,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE
+notulensi_tampilan_kartu,Tampilan Kartu,notulensi_rapat,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE
+notulensi_tampilan_tabel,Tampilan Tabel,notulensi_rapat,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE
