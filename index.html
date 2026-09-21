@@ -425,6 +425,7 @@ const SUB_MODULE_DEFS = [
   { id:'admin_user', parentId:'administrasi', name:'Tab: User', roles:['superadmin'] },
   { id:'admin_sistem', parentId:'administrasi', name:'Tab: Pengaturan / Sistem', roles:['superadmin'] },
   { id:'admin_log', parentId:'administrasi', name:'Tab: Log Aktivitas', roles:['superadmin'] },
+  { id:'admin_telegram', parentId:'administrasi', name:'Tab: Notifikasi Telegram', roles:['superadmin'] },
   { id:'keuangan_invoice', parentId:'keuangan', name:'Tab: Invoice', roles:['superadmin','owner','direktur','admin','finance'] },
   { id:'keuangan_pajak', parentId:'keuangan', name:'Tab: Laporan Pajak', roles:['superadmin','owner','direktur','admin','konsultan','klien'] },
 ];
@@ -435,7 +436,23 @@ SUB_MODULE_DEFS.forEach(m=>{
 });
 // Override per-individu — email -> { subModuleId: true/false }. Kosong sampai
 // dimuat dari Sheet (lihat muatUserOverrides()).
-let userOverrideConfig = {};
+// Daftar LENGKAP semua jenis aktivitas yang tercatat di Activity Log —
+// dikelompokkan supaya enak dilihat di halaman Notifikasi Telegram.
+// aksiId dipakai sebagai key penyimpanan; harus persis cocok dengan string
+// yang dipakai di logActivity() di seluruh aplikasi.
+const TELEGRAM_AKSI_DEFS = [
+  { kelompok:'Akun & Keamanan', aksi:['Login','Logout','Ganti Password','Ubah Profil','Ubah Foto Profil'] },
+  { kelompok:'Manajemen User', aksi:['Tambah User','Ubah User','Hapus User','Ubah Akses Modul'] },
+  { kelompok:'Klien Pajak', aksi:['Tambah Klien','Ubah Klien','Hapus Klien'] },
+  { kelompok:'Pekerjaan', aksi:['Tambah Pekerjaan','Ubah Pekerjaan','Hapus Pekerjaan','Setujui Pekerjaan','Tolak Pekerjaan'] },
+  { kelompok:'Reminder', aksi:['Tambah Reminder','Ubah Reminder','Hapus Reminder','Tandai Reminder Selesai'] },
+  { kelompok:'Keuangan', aksi:['Buat Invoice','Ubah Status Invoice','Hapus Invoice'] },
+  { kelompok:'Dokumen', aksi:['Unggah Dokumen','Ubah Dokumen','Hapus Dokumen'] },
+  { kelompok:'Kalender', aksi:['Tambah Catatan Kalender','Ubah Catatan Kalender'] },
+  { kelompok:'Notulensi Rapat', aksi:['Tambah Notulensi','Ubah Notulensi'] },
+  { kelompok:'Lainnya', aksi:['Kirim Pesan','Ubah Pengaturan Sistem'] },
+];
+let telegramNotifConfig = {}; // aksiId -> {aktif, kirimGrup, kirimPribadi} — diisi dari Sheet saat dibuka
 
 // Data awal (akan tertimpa data asli dari Sheet setelah login berhasil)
 const MOCK_USERS = [
@@ -451,6 +468,46 @@ const MOCK_USERS = [
 // ---------- DATA KLIEN & OPSI FIELD ----------
 // Daftar Bentuk Badan — BUKAN daftar tetap, bisa bertambah dari waktu ke waktu
 // (lihat handleBentukBadanSelectChange). Diperbarui dari Sheet saat boot.
+// Daftar LENGKAP semua aktivitas yang tercatat di Activity Log (dari
+// logActivity() di seluruh aplikasi) — dipakai sebagai ceklist di halaman
+// Pengaturan Notifikasi Telegram. Kalau ada aksi baru ditambahkan ke
+// aplikasi nanti, tambahkan juga entrinya di sini.
+const TELEGRAM_ACTIVITY_DEFS = [
+  { key:'Login', group:'Akun & Keamanan' },
+  { key:'Logout', group:'Akun & Keamanan' },
+  { key:'Ganti Password', group:'Akun & Keamanan' },
+  { key:'Ubah Profil', group:'Akun & Keamanan' },
+  { key:'Ubah Foto Profil', group:'Akun & Keamanan' },
+  { key:'Tambah User', group:'Manajemen User' },
+  { key:'Ubah User', group:'Manajemen User' },
+  { key:'Hapus User', group:'Manajemen User' },
+  { key:'Ubah Akses Modul', group:'Manajemen User' },
+  { key:'Tambah Klien', group:'Klien Pajak' },
+  { key:'Ubah Klien', group:'Klien Pajak' },
+  { key:'Hapus Klien', group:'Klien Pajak' },
+  { key:'Tambah Pekerjaan', group:'Pekerjaan' },
+  { key:'Ubah Pekerjaan', group:'Pekerjaan' },
+  { key:'Hapus Pekerjaan', group:'Pekerjaan' },
+  { key:'Setujui Pekerjaan', group:'Pekerjaan' },
+  { key:'Tolak Pekerjaan', group:'Pekerjaan' },
+  { key:'Tambah Reminder', group:'Reminder' },
+  { key:'Ubah Reminder', group:'Reminder' },
+  { key:'Hapus Reminder', group:'Reminder' },
+  { key:'Tandai Reminder Selesai', group:'Reminder' },
+  { key:'Buat Invoice', group:'Keuangan' },
+  { key:'Ubah Status Invoice', group:'Keuangan' },
+  { key:'Hapus Invoice', group:'Keuangan' },
+  { key:'Unggah Dokumen', group:'Dokumen' },
+  { key:'Ubah Dokumen', group:'Dokumen' },
+  { key:'Hapus Dokumen', group:'Dokumen' },
+  { key:'Tambah Catatan Kalender', group:'Kalender' },
+  { key:'Ubah Catatan Kalender', group:'Kalender' },
+  { key:'Tambah Notulensi', group:'Notulensi Rapat' },
+  { key:'Ubah Notulensi', group:'Notulensi Rapat' },
+  { key:'Ubah Pengaturan Sistem', group:'Sistem' },
+  { key:'Kirim Pesan', group:'Komunikasi' },
+];
+
 let BENTUK_BADAN_OPTIONS = ['PT','PT Perorangan','CV','Firma','Yayasan','Koperasi'];
 // Daftar Bidang Usaha — BUKAN daftar tetap, bisa bertambah dari waktu ke waktu
 // (lihat handleBidangUsahaSelectChange). Diperbarui dari Sheet saat boot.
@@ -1037,6 +1094,22 @@ const api = {
     } catch (err) { return { success:false, message: err.message }; }
   },
 
+  async getTelegramNotifSettings(){
+    try {
+      const data = await callBackendUtama('getTelegramNotifSettings');
+      if (data.success){
+        telegramNotifConfig = {};
+        data.settings.forEach(s => { telegramNotifConfig[s.aksiId] = { aktif:s.aktif, kirimGrup:s.kirimGrup, kirimPribadi:s.kirimPribadi }; });
+      }
+      return { success: true };
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+  async updateTelegramNotifSetting(aksiId, field, value){
+    try {
+      return await callBackendUtama('updateTelegramNotifSetting', { aksiId, field, value });
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+
   async searchMeetingMinutes(query, clientId){
     try {
       return await callBackendUtama('searchMeetingMinutes', { query, clientId });
@@ -1050,6 +1123,21 @@ const api = {
   async updateMeetingMinutes(id, data){
     try {
       return await callBackendUtama('updateMeetingMinutes', { id, data });
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+
+  async getTelegramActivitySettings(){
+    try {
+      const data = await callBackendUtama('getTelegramActivitySettings');
+      if (!data.success) return { success:false, message: data.message };
+      const map = {};
+      data.settings.forEach(s => { map[s.activityKey] = { enabled:s.enabled, kirimGrup:s.kirimGrup, kirimPribadi:s.kirimPribadi }; });
+      return { success:true, map };
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+  async toggleTelegramActivitySetting(activityKey, field){
+    try {
+      return await callBackendUtama('toggleTelegramActivitySetting', { activityKey, field });
     } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
   },
 
@@ -1080,6 +1168,8 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   lupaPasswordSukses: false, lupaPasswordPesan: '', lupaPasswordEmail: '',
   logAktivitasTab: 'semua', logAktivitasSelectedUser: '',
   notulensiView: { tab:'kartu', search:'' },
+  changelogOpen: false,
+  telegramActivityMatrix: null, telegramGroupExpanded: {},
   notulensiForm: { open:false, step:'awal', mode:'add', waktuPilihan:'sekarang', clientIds:[], originalId:null,
     cariQuery:'', cariHasil:[], presetClientId:null, actionItems:[] },
   gatePage: 'email', emailGerbang: '',
@@ -5375,10 +5465,92 @@ function renderCalendarModule(){
 /* ================================================================
    ADMINISTRASI — gabungan Manajemen Modul, User, Sistem, Log (khusus Superadmin)
    ================================================================ */
+function toggleTelegramGroupExpand(kelompok){
+  state.telegramGroupExpanded[kelompok] = !state.telegramGroupExpanded[kelompok];
+  render();
+}
+async function toggleTelegramAksiField(aksiId, field){
+  if (!telegramNotifConfig[aksiId]) telegramNotifConfig[aksiId] = { aktif:false, kirimGrup:false, kirimPribadi:false };
+  const nilaiBaru = !telegramNotifConfig[aksiId][field];
+  telegramNotifConfig[aksiId][field] = nilaiBaru;
+  state.telegramActivityMatrix = telegramNotifConfig;
+  render();
+  const result = await api.updateTelegramNotifSetting(aksiId, field, nilaiBaru);
+  if (!result.success){
+    telegramNotifConfig[aksiId][field] = !nilaiBaru; // gagal simpan -> kembalikan
+    state.telegramActivityMatrix = telegramNotifConfig;
+    render();
+    alert(result.message || 'Gagal menyimpan pengaturan.');
+  }
+}
+async function simpanKonfigurasiBotTelegram(){
+  const botToken = getFieldVal('tg-bot-token');
+  const grupChatId = getFieldVal('tg-grup-id');
+  state.loading = true; render();
+  const result = await callBackendUtama('updateSystemSettings', { updates: { telegramBotToken: botToken, telegramGrupChatId: grupChatId } });
+  state.loading = false;
+  if (result.success){ Object.assign(state.systemSettings, { telegramBotToken: botToken, telegramGrupChatId: grupChatId }); logActivity('Ubah Pengaturan Sistem', 'Konfigurasi Bot Telegram diperbarui'); }
+  else alert(result.message || 'Gagal menyimpan.');
+  render();
+}
+
+function renderPengaturanTelegram(){
+  const totalAksi = TELEGRAM_AKSI_DEFS.reduce((s,g)=>s+g.aksi.length, 0);
+  const totalAktif = Object.values(telegramNotifConfig).filter(c=>c.aktif).length;
+
+  const groupsHtml = TELEGRAM_AKSI_DEFS.map(g=>{
+    const expanded = state.telegramGroupExpanded[g.kelompok] !== false; // default terbuka
+    const aktifDiGrup = g.aksi.filter(a=>telegramNotifConfig[a]?.aktif).length;
+    const rowsHtml = !expanded ? '' : g.aksi.map(aksiId=>{
+      const cfg = telegramNotifConfig[aksiId] || { aktif:false, kirimGrup:false, kirimPribadi:false };
+      return `<div style="display:flex;align-items:center;gap:14px;padding:8px 0 8px 28px;border-bottom:1px solid var(--bg);">
+        <span style="flex:1;font-size:12.5px;">${aksiId}</span>
+        <button class="toggle ${cfg.aktif?'on':''}" onclick="toggleTelegramAksiField('${aksiId}','aktif')" title="Aktifkan notifikasi ini"></button>
+        <span onclick="${cfg.aktif?`toggleTelegramAksiField('${aksiId}','kirimGrup')`:''}" style="cursor:${cfg.aktif?'pointer':'default'};opacity:${cfg.aktif?'1':'.35'};font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:20px;border:1.5px solid ${cfg.kirimGrup?'var(--gold)':'var(--border)'};background:${cfg.kirimGrup?'#FDF3E3':'white'};color:${cfg.kirimGrup?'var(--gold)':'var(--ink-soft)'};">Grup</span>
+        <span onclick="${cfg.aktif?`toggleTelegramAksiField('${aksiId}','kirimPribadi')`:''}" style="cursor:${cfg.aktif?'pointer':'default'};opacity:${cfg.aktif?'1':'.35'};font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:20px;border:1.5px solid ${cfg.kirimPribadi?'var(--gold)':'var(--border)'};background:${cfg.kirimPribadi?'#FDF3E3':'white'};color:${cfg.kirimPribadi?'var(--gold)':'var(--ink-soft)'};">Pribadi</span>
+      </div>`;
+    }).join('');
+    return `<div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;">
+      <div onclick="toggleTelegramGroupExpand('${g.kelompok}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);cursor:pointer;">
+        <span style="font-weight:700;font-size:12.5px;color:var(--navy);">${expanded?'&#9660;':'&#9654;'} ${g.kelompok}</span>
+        <span style="font-size:11px;color:var(--ink-soft);">${aktifDiGrup}/${g.aksi.length} aktif</span>
+      </div>
+      ${rowsHtml}
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="section-title" style="font-size:15px;margin-bottom:4px;">Notifikasi Telegram</div>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:16px;">Pilih aktivitas mana yang dikirim ke Telegram, dan ke mana (Grup kantor dan/atau Pribadi tiap staff yang sudah menghubungkan akun Telegram-nya).</p>
+
+    <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:18px;background:var(--surface);">
+      <div style="font-weight:700;font-size:12.5px;margin-bottom:10px;color:var(--navy);">Konfigurasi Bot</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+        <div><label>Bot Token</label><input type="text" id="tg-bot-token" value="${state.systemSettings.telegramBotToken||''}" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="font-family:var(--font-mono);font-size:11.5px;"></div>
+        <div><label>ID Grup Telegram Kantor</label><input type="text" id="tg-grup-id" value="${state.systemSettings.telegramGrupChatId||''}" placeholder="-1002345678901" style="font-family:var(--font-mono);font-size:11.5px;"></div>
+      </div>
+      <button class="btn-secondary" onclick="simpanKonfigurasiBotTelegram()" ${state.loading?'disabled':''}>${state.loading?'Menyimpan...':'Simpan Konfigurasi'}</button>
+      <p style="font-size:10.5px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">Buat bot lewat @BotFather di Telegram untuk dapat Token ini. Setelah Bot Token diisi, staff bisa menghubungkan akun Telegram pribadinya lewat menu Profil Saya.</p>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-weight:700;font-size:12.5px;color:var(--navy);">Checklist Aktivitas</div>
+      <div style="font-size:11px;color:var(--ink-soft);">${totalAktif}/${totalAksi} aktivitas aktif</div>
+    </div>
+    ${groupsHtml}`;
+}
+
 function setAdministrasiTab(tab){
   state.administrasiTab = tab;
   if (tab === 'modul' && !state.allModulesMatrix) { openModuleSettings(); return; }
+  if (tab === 'telegram' && !state.telegramActivityMatrix) { muatPengaturanTelegram(); return; }
   render();
+}
+async function muatPengaturanTelegram(){
+  state.loading = true; render();
+  await api.getTelegramNotifSettings();
+  state.telegramActivityMatrix = telegramNotifConfig;
+  state.loading = false; render();
 }
 function renderAdministrasiModule(){
   if (state.administrasiTab === 'modul' && !state.allModulesMatrix && !state.loading){ openModuleSettings(); }
@@ -5387,11 +5559,13 @@ function renderAdministrasiModule(){
     ${bisaAksesSubModul('admin_user') ? `<button class="tab-btn ${state.administrasiTab==='user'?'active':''}" onclick="setAdministrasiTab('user')">User</button>` : ''}
     ${bisaAksesSubModul('admin_sistem') ? `<button class="tab-btn ${state.administrasiTab==='sistem'?'active':''}" onclick="setAdministrasiTab('sistem')">Pengaturan</button>` : ''}
     ${bisaAksesSubModul('admin_log') ? `<button class="tab-btn ${state.administrasiTab==='log'?'active':''}" onclick="setAdministrasiTab('log')">Sistem</button>` : ''}
+    ${bisaAksesSubModul('admin_telegram') ? `<button class="tab-btn ${state.administrasiTab==='telegram'?'active':''}" onclick="setAdministrasiTab('telegram')">Notifikasi Telegram</button>` : ''}
   </div>`;
   let body;
   if (state.administrasiTab === 'modul') body = renderModuleSettings(true);
   else if (state.administrasiTab === 'user') body = renderUserManagement(true);
   else if (state.administrasiTab === 'sistem') body = renderSystemSettings(true);
+  else if (state.administrasiTab === 'telegram') body = renderPengaturanTelegram();
   else body = `<div class="section-title" style="font-size:15px;margin-bottom:12px;">Log Aktivitas</div>`
     + renderActivityLog(true)
     + `<div class="section-title" style="font-size:15px;margin:28px 0 12px;">Rilis Update</div>`
@@ -5417,6 +5591,16 @@ function renderRilisUpdateTable(){
     <tr><th>No</th><th>Seri Update</th><th>Tanggal</th><th>Jam</th></tr>
     ${rows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">Belum ada riwayat update.</td></tr>'}
   </table></div>`;
+}
+function renderChangelogModal(){
+  return `<div class="doc-modal-backdrop" onclick="if(event.target===this){ state.changelogOpen=false; render(); }">
+    <div class="doc-modal-box" style="max-width:520px;">
+      <button class="doc-modal-close" onclick="state.changelogOpen=false; render();" title="Tutup">&times;</button>
+      <div class="section-title">Riwayat Update Aplikasi</div>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-6px;margin-bottom:14px;">Update terbaru: ${getUpdateTerakhir() || '-'}</p>
+      ${renderRilisUpdateTable()}
+    </div>
+  </div>`;
 }
 function getUpdateTerakhir(){
   if (updateTerakhirDariGithub) return updateTerakhirDariGithub;
@@ -6618,7 +6802,8 @@ function renderShell(){
       <div class="brand" onclick="acakWarnaSidebar()">${sealHtml}<div><div class="brand-name">${s.namaKantor || 'Portal Konsultan Pajak'}</div><div class="brand-sub">KONSULTAN PAJAK</div></div></div>
       <div class="nav-section-title">Menu</div>
       <nav>${navItems || '<div style="padding:10px;font-size:12px;color:#9AA4BB;">Tidak ada modul aktif</div>'}</nav>
-      <div class="sidebar-footer">${getUpdateTerakhir() ? `Update Terbaru: ${getUpdateTerakhir()}<br>` : ''}&copy; 2026 Jundezain</div>
+      <div class="sidebar-footer" onclick="state.changelogOpen=true; render();" style="cursor:pointer;">${getUpdateTerakhir() ? `Update Terbaru: ${getUpdateTerakhir()}<br>` : ''}&copy; 2026 Jundezain</div>
+      ${state.changelogOpen ? renderChangelogModal() : ''}
     </aside>
     <main>
       ${state.activeModule ? (CONTENT_MAP[state.activeModule]||(()=>'<div class="empty">Modul belum tersedia</div>'))(state.session.role) : '<div class="empty">Tidak ada modul yang dapat diakses untuk role ini.</div>'}
