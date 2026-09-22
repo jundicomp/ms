@@ -1177,6 +1177,7 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   logAktivitasTab: 'semua', logAktivitasSelectedUser: '',
   notulensiView: { tab:'kartu', search:'' },
   telegramTestLoading: false,
+  rkJadwalLoading: false, rkKirimLoading: false,
   changelogOpen: false,
   telegramActivityMatrix: null, telegramGroupExpanded: {},
   notulensiForm: { open:false, step:'awal', mode:'add', waktuPilihan:'sekarang', clientIds:[], originalId:null,
@@ -5509,6 +5510,34 @@ async function testKirimPesanTelegram(){
   render();
   alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
 }
+async function simpanJadwalRingkasanKinerja(){
+  const jam = getFieldVal('rk-jam-otomatis');
+  state.rkJadwalLoading = true; render();
+  const result = await callBackendUtama('aturJadwalRingkasanKinerja', { jam });
+  state.rkJadwalLoading = false;
+  if (result.success){ state.systemSettings.ringkasanKinerjaJam = jam; logActivity('Ubah Pengaturan Sistem', 'Jadwal Ringkasan Kinerja diatur jam ' + jam + ':00'); }
+  render();
+  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+}
+async function nonaktifkanJadwalRingkasanKinerja(){
+  state.rkJadwalLoading = true; render();
+  const result = await callBackendUtama('nonaktifkanJadwalRingkasanKinerja');
+  state.rkJadwalLoading = false;
+  if (result.success){ state.systemSettings.ringkasanKinerjaJam = ''; logActivity('Ubah Pengaturan Sistem', 'Jadwal Ringkasan Kinerja dinonaktifkan'); }
+  render();
+  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+}
+async function kirimRingkasanKinerjaManual(){
+  const tglMulai = getFieldVal('rk-tgl-mulai');
+  const tglSelesai = getFieldVal('rk-tgl-selesai');
+  if (!tglMulai || !tglSelesai){ alert('Isi dulu rentang tanggalnya.'); return; }
+  if (tglMulai > tglSelesai){ alert('Tanggal mulai tidak boleh setelah tanggal selesai.'); return; }
+  state.rkKirimLoading = true; render();
+  const result = await callBackendUtama('kirimRingkasanKinerjaKeTelegram', { tglMulai, tglSelesai });
+  state.rkKirimLoading = false;
+  render();
+  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+}
 
 function renderPengaturanTelegram(){
   const totalAksi = TELEGRAM_AKSI_DEFS.reduce((s,g)=>s+g.aksi.length, 0);
@@ -5548,6 +5577,32 @@ function renderPengaturanTelegram(){
       <button class="btn-secondary" onclick="simpanKonfigurasiBotTelegram()" ${state.loading?'disabled':''}>${state.loading?'Menyimpan...':'Simpan Konfigurasi'}</button>
       <button class="btn-secondary" onclick="testKirimPesanTelegram()" style="margin-left:8px;" ${state.telegramTestLoading?'disabled':''}>${state.telegramTestLoading?'Mengirim...':'\u2709 Test Kirim Pesan'}</button>
       <p style="font-size:10.5px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">Buat bot lewat @BotFather di Telegram untuk dapat Token ini. Setelah Bot Token diisi, staff bisa menghubungkan akun Telegram pribadinya lewat menu Profil Saya.</p>
+    </div>
+
+    <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:18px;background:var(--surface);">
+      <div style="font-weight:700;font-size:12.5px;margin-bottom:4px;color:var(--navy);">Ringkasan Kinerja</div>
+      <p style="font-size:11px;color:var(--ink-soft);margin-bottom:12px;">Infografis rekap aktivitas &amp; kerjaan tiap staff, dikirim sebagai gambar ke grup Telegram.</p>
+
+      <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+        <div style="flex:0 0 auto;">
+          <label>Kirim Otomatis Tiap Hari, Jam</label>
+          <select id="rk-jam-otomatis" style="width:120px;">
+            ${Array.from({length:24},(_,h)=>`<option value="${h}" ${String(state.systemSettings.ringkasanKinerjaJam)===String(h)?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn-secondary" onclick="simpanJadwalRingkasanKinerja()" ${state.rkJadwalLoading?'disabled':''}>${state.rkJadwalLoading?'Menyimpan...':'Simpan Jadwal'}</button>
+        ${state.systemSettings.ringkasanKinerjaJam ? `<button class="btn-secondary" onclick="nonaktifkanJadwalRingkasanKinerja()" ${state.rkJadwalLoading?'disabled':''}>Nonaktifkan</button>` : ''}
+      </div>
+      <p style="font-size:10.5px;color:var(--ink-soft);margin-bottom:14px;">${state.systemSettings.ringkasanKinerjaJam ? `Status: aktif, terkirim otomatis tiap hari jam ${String(state.systemSettings.ringkasanKinerjaJam).padStart(2,'0')}:00.` : 'Status: belum aktif — pilih jam lalu Simpan Jadwal untuk mengaktifkan.'}</p>
+
+      <div style="border-top:1px solid var(--border);padding-top:12px;">
+        <label style="font-weight:600;">Atau Kirim Manual Sekarang</label>
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:6px;">
+          <div><label>Dari Tanggal</label><input type="date" id="rk-tgl-mulai" style="width:150px;"></div>
+          <div><label>Sampai Tanggal</label><input type="date" id="rk-tgl-selesai" style="width:150px;"></div>
+          <button class="primary" style="width:auto;padding:9px 18px;" onclick="kirimRingkasanKinerjaManual()" ${state.rkKirimLoading?'disabled':''}>${state.rkKirimLoading?'Membuat &amp; Mengirim...':'Kirim Sekarang'}</button>
+        </div>
+      </div>
     </div>
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
