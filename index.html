@@ -1178,6 +1178,7 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   notulensiView: { tab:'kartu', search:'' },
   telegramTestLoading: false,
   rkJadwalLoading: false, rkKirimLoading: false,
+  notifModal: { open:false, sukses:true, pesan:'' },
   changelogOpen: false,
   telegramActivityMatrix: null, telegramGroupExpanded: {},
   notulensiForm: { open:false, step:'awal', mode:'add', waktuPilihan:'sekarang', clientIds:[], originalId:null,
@@ -5508,7 +5509,7 @@ async function testKirimPesanTelegram(){
   const result = await callBackendUtama('kirimTestTelegram');
   state.telegramTestLoading = false;
   render();
-  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+  tampilkanNotifModal(result.success, result.message);
 }
 async function simpanJadwalRingkasanKinerja(){
   const jam = getFieldVal('rk-jam-otomatis');
@@ -5517,7 +5518,7 @@ async function simpanJadwalRingkasanKinerja(){
   state.rkJadwalLoading = false;
   if (result.success){ state.systemSettings.ringkasanKinerjaJam = jam; logActivity('Ubah Pengaturan Sistem', 'Jadwal Ringkasan Kinerja diatur jam ' + jam + ':00'); }
   render();
-  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+  tampilkanNotifModal(result.success, result.message);
 }
 async function nonaktifkanJadwalRingkasanKinerja(){
   state.rkJadwalLoading = true; render();
@@ -5525,7 +5526,7 @@ async function nonaktifkanJadwalRingkasanKinerja(){
   state.rkJadwalLoading = false;
   if (result.success){ state.systemSettings.ringkasanKinerjaJam = ''; logActivity('Ubah Pengaturan Sistem', 'Jadwal Ringkasan Kinerja dinonaktifkan'); }
   render();
-  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+  tampilkanNotifModal(result.success, result.message);
 }
 async function kirimRingkasanKinerjaManual(){
   const tglMulai = getFieldVal('rk-tgl-mulai');
@@ -5536,7 +5537,7 @@ async function kirimRingkasanKinerjaManual(){
   const result = await callBackendUtama('kirimRingkasanKinerjaKeTelegram', { tglMulai, tglSelesai });
   state.rkKirimLoading = false;
   render();
-  alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+  tampilkanNotifModal(result.success, result.message);
 }
 
 function renderPengaturanTelegram(){
@@ -6882,8 +6883,22 @@ function renderShell(){
     </main>
   </div>
   ${renderMobileFooter()}
-  ${renderChatPopup()}`;
+  ${renderChatPopup()}
+  ${state.notifModal.open ? renderNotifModal() : ''}`;
 }
+function renderNotifModal(){
+  const n = state.notifModal;
+  return `<div class="doc-modal-backdrop" onclick="if(event.target===this) tutupNotifModal()">
+    <div class="doc-modal-box" style="max-width:420px;text-align:center;">
+      <button class="doc-modal-close" onclick="tutupNotifModal()" title="Tutup">&times;</button>
+      <div class="seal" style="margin:0 auto 14px;background:${n.sukses?'#E3F6EC':'#FBE7EA'};border-color:${n.sukses?'#2FA36B':'#C0392B'};color:${n.sukses?'#2FA36B':'#C0392B'};">${n.sukses?'&#10003;':'&#10007;'}</div>
+      <p style="font-size:13px;color:var(--ink);line-height:1.6;margin:0 0 18px;">${n.pesan}</p>
+      <button class="primary" style="width:auto;padding:9px 24px;" onclick="tutupNotifModal()">OK</button>
+    </div>
+  </div>`;
+}
+function tampilkanNotifModal(sukses, pesan){ state.notifModal = { open:true, sukses, pesan }; render(); }
+function tutupNotifModal(){ state.notifModal.open = false; render(); }
 function render(){
   const app = document.getElementById('app');
   if (state.bootLoading) {
