@@ -1179,6 +1179,7 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   telegramTestLoading: false,
   rkJadwalLoading: false, rkKirimLoading: false,
   notifModal: { open:false, sukses:true, pesan:'' },
+  isiReminderModal: { open:false, items:[] },
   changelogOpen: false,
   telegramActivityMatrix: null, telegramGroupExpanded: {},
   notulensiForm: { open:false, step:'awal', mode:'add', waktuPilihan:'sekarang', clientIds:[], originalId:null,
@@ -2166,6 +2167,42 @@ function renderReminderBlocksHtml(){
 
 function setReminderTab(tab){ state.reminderView.tab = tab; render(); }
 
+// Kolom "Isi Reminder" bisa berisi 10+ item, kalau ditampilkan semua bikin
+// baris tabel jadi sangat tinggi. Sekarang cuma 3 item pertama yang tampil,
+// sisanya di balik "+ N lainnya" yang bisa diklik (buka modal daftar
+// lengkap) — dan tetap ada tooltip hover (atribut title bawaan browser)
+// untuk intip cepat tanpa perlu klik.
+function renderIsiReminderCell(r){
+  const semua = r.isiReminder.map(n => `${n}. ${REMINDER_ITEMS[n-1]}`);
+  const tampil = semua.slice(0, 3);
+  const sisa = semua.length - tampil.length;
+  const tooltipText = semua.join(' | ').replace(/"/g, '&quot;');
+  let html = `<span style="font-size:12px;" title="${tooltipText}">${tampil.join('<br>')}`;
+  if (sisa > 0){
+    html += `<br><span onclick="bukaDetailIsiReminder('${r.id}')" style="color:var(--gold);cursor:pointer;font-weight:600;text-decoration:underline;">+ ${sisa} lainnya</span>`;
+  }
+  html += `</span>`;
+  return html;
+}
+function bukaDetailIsiReminder(reminderId){
+  const r = MOCK_REMINDERS.find(x=>x.id===reminderId);
+  if (!r) return;
+  state.isiReminderModal = { open:true, items: r.isiReminder.map(n=>`${n}. ${REMINDER_ITEMS[n-1]}`) };
+  render();
+}
+function tutupIsiReminderModal(){ state.isiReminderModal.open = false; render(); }
+function renderIsiReminderModal(){
+  const m = state.isiReminderModal;
+  return `<div class="doc-modal-backdrop" onclick="if(event.target===this) tutupIsiReminderModal()">
+    <div class="doc-modal-box" style="max-width:440px;">
+      <button class="doc-modal-close" onclick="tutupIsiReminderModal()" title="Tutup">&times;</button>
+      <div class="section-title">Isi Reminder Lengkap</div>
+      <ul style="font-size:13px;color:var(--ink);line-height:1.85;padding-left:20px;margin:10px 0 0;">
+        ${m.items.map(it=>`<li>${it}</li>`).join('')}
+      </ul>
+    </div>
+  </div>`;
+}
 function renderReminderSettings(){
   const f = state.reminderForm.open ? (MOCK_REMINDERS.find(r=>r.id===state.reminderForm.originalId) || {}) : {};
   const jenisJadwalNow = f.jenisJadwal || 'Jadwal Rutin';
@@ -2253,7 +2290,7 @@ function renderReminderSettings(){
       const tanggalLabel = r.tanggalMode === 'Bulan Ini Saja'
         ? formatDDMMYY(r.tanggalValue)
         : `Tanggal ${r.tanggalValue || '-'} setiap bulan`;
-      const isiLabel = r.isiReminder.map(n => `${n}. ${REMINDER_ITEMS[n-1]}`).join('<br>');
+      const isiLabel = renderIsiReminderCell(r);
       const isActive = isReminderActiveOn(r, REMINDER_TODAY);
       const statusBadge = isActive ? `<span class="badge warn">Aktif</span>` : `<span class="badge ok">${ICON_CHECK}Selesai</span>`;
       const selesaiBtn = isActive
@@ -2284,6 +2321,11 @@ function renderReminderSettings(){
     }).join('') : `<div class="empty">Belum ada pengaturan reminder.</div>`;
     bodyHtml = kartuButtonBoxHtml + cardsHtml;
   } else {
+    // Kolom "Isi Reminder" bisa berisi 10+ item, kalau ditampilkan semua bikin
+    // baris tabel jadi sangat tinggi. Sekarang cuma 3 item pertama yang tampil,
+    // sisanya di balik "+ N lainnya" yang bisa diklik (buka modal daftar
+    // lengkap) — dan tetap ada tooltip hover (atribut title bawaan browser)
+    // untuk intip cepat tanpa perlu klik.
     const reminderTableColumns = [
       { key:'jenisJadwal', label:'Jenis Jadwal', searchable:true, sortValue:(r)=>r.jenisJadwal.toLowerCase(), searchValue:(r)=>r.jenisJadwal, cell:(r)=>r.jenisJadwal },
       { key:'wajibPajak', label:'Wajib Pajak', searchable:true, sortValue:(r)=>(r.wajibPajak||'').toLowerCase(), searchValue:(r)=>r.wajibPajak, cell:(r)=> r.wajibPajak==='Badan Usaha' ? `Badan Usaha<span class="mod-desc" style="display:inline;"> (${r.badanUsahaSubtype||'-'})</span>` : 'Orang Pribadi' },
@@ -2295,7 +2337,7 @@ function renderReminderSettings(){
         const client = MOCK_CLIENTS.find(c=>c.id===r.clientId);
         return client ? client.nama : '<span style="color:var(--ink-soft);">Klien dihapus</span>';
       }},
-      { key:'isi', label:'Isi Reminder', searchable:true, searchValue:(r)=>r.isiReminder.map(n=>REMINDER_ITEMS[n-1]).join(' '), cell:(r)=>`<span style="font-size:12px;">${r.isiReminder.map(n => `${n}. ${REMINDER_ITEMS[n-1]}`).join('<br>')}</span>` },
+      { key:'isi', label:'Isi Reminder', searchable:true, searchValue:(r)=>r.isiReminder.map(n=>REMINDER_ITEMS[n-1]).join(' '), cell:(r)=>renderIsiReminderCell(r) },
       { key:'status', label:'Status', searchable:false, cell:(r)=>{
         const isActive = isReminderActiveOn(r, REMINDER_TODAY);
         return isActive
@@ -3297,7 +3339,7 @@ function renderClientMonitoring(embedded){
         { key:'jenisJadwal', label:'Jenis Jadwal', searchable:true, sortValue:(r)=>r.jenisJadwal.toLowerCase(), searchValue:(r)=>r.jenisJadwal, cell:(r)=>r.jenisJadwal },
         { key:'tanggal', label:'Tanggal', searchable:false, sortValue:(r)=>r.tanggalValue||'', nowrap:true, cell:(r)=> r.tanggalMode === 'Bulan Ini Saja' ? formatDDMMYY(r.tanggalValue) : `Tanggal ${r.tanggalValue} setiap bulan` },
         { key:'lama', label:'Lama Reminder', searchable:false, sortValue:(r)=>Number(r.lamaReminderHari)||0, cell:(r)=>`${r.lamaReminderHari} hari` },
-        { key:'isi', label:'Isi Reminder', searchable:true, searchValue:(r)=>r.isiReminder.map(n=>REMINDER_ITEMS[n-1]).join(' '), cell:(r)=>`<span style="font-size:12px;">${r.isiReminder.map(n=>`${n}. ${REMINDER_ITEMS[n-1]}`).join('<br>')}</span>` },
+        { key:'isi', label:'Isi Reminder', searchable:true, searchValue:(r)=>r.isiReminder.map(n=>REMINDER_ITEMS[n-1]).join(' '), cell:(r)=>renderIsiReminderCell(r) },
       ];
       tabContent = managedTableBlock('reminder_tab_'+c.id, reminderTabColumns, () => MOCK_REMINDERS.filter(r=>r.clientId===c.id), 'Cari jenis jadwal atau isi reminder...');
     }
@@ -6884,7 +6926,8 @@ function renderShell(){
   </div>
   ${renderMobileFooter()}
   ${renderChatPopup()}
-  ${state.notifModal.open ? renderNotifModal() : ''}`;
+  ${state.notifModal.open ? renderNotifModal() : ''}
+  ${state.isiReminderModal.open ? renderIsiReminderModal() : ''}`;
 }
 function renderNotifModal(){
   const n = state.notifModal;
