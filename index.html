@@ -391,15 +391,15 @@ const ROLES = [
 
 const MODULE_DEFS = [
   {id:'dashboard', name:'Dashboard', desc:'Ringkasan aktivitas', core:true, roles:['superadmin','owner','direktur','admin','konsultan','klien','finance']},
-  {id:'administrasi', name:'Administrasi', desc:'Manajemen modul, user, pengaturan sistem, dan log aktivitas', core:true, roles:['superadmin']},
-  {id:'klien_pajak', name:'Daftar Klien Pajak', desc:'Data wajib pajak dan profil 360° tiap klien', core:false, roles:['superadmin','owner','direktur','admin','konsultan','finance']},
-  {id:'notulensi_rapat', name:'Notulensi Rapat', desc:'Catatan hasil rapat internal terkait klien — bisa melibatkan lebih dari satu klien sekaligus', core:false, roles:['superadmin','owner','direktur','admin','konsultan']},
+  {id:'reminder_settings', name:'Reminder Pekerjaan', desc:'Atur jadwal reminder kewajiban pajak per klien', core:false, roles:['superadmin','admin','konsultan']},
   {id:'job_management', name:'Penugasan Pekerjaan', desc:'Buat dan kelola daftar pekerjaan tim', core:false, roles:['superadmin','admin']},
-  {id:'calendar_agenda', name:'Agenda & Kalender', desc:'Kumpulan agenda dari semua modul + catatan pribadi', core:false, roles:['superadmin','owner','direktur','admin','konsultan','finance']},
-  {id:'reminder_settings', name:'Buat Reminder Pekerjaan', desc:'Atur jadwal reminder kewajiban pajak per klien', core:false, roles:['superadmin','admin','konsultan']},
   {id:'all_jobs', name:'Daftar Pekerjaan', desc:'Lihat, kerjakan, dan setujui pekerjaan tim', core:false, roles:['superadmin','owner','direktur','admin','konsultan','finance']},
   {id:'document_management', name:'Galeri Dokumen', desc:'Upload dan kelola dokumen kantor maupun klien', core:false, roles:['superadmin','admin','konsultan','klien']},
+  {id:'notulensi_rapat', name:'Notulensi Rapat', desc:'Catatan hasil rapat internal terkait klien — bisa melibatkan lebih dari satu klien sekaligus', core:false, roles:['superadmin','owner','direktur','admin','konsultan']},
+  {id:'klien_pajak', name:'Klien Pajak', desc:'Data wajib pajak dan profil 360° tiap klien', core:false, roles:['superadmin','owner','direktur','admin','konsultan','finance']},
+  {id:'calendar_agenda', name:'Agenda & Kalender', desc:'Kumpulan agenda dari semua modul + catatan pribadi', core:false, roles:['superadmin','owner','direktur','admin','konsultan','finance']},
   {id:'keuangan', name:'Keuangan', desc:'Invoice, pembayaran, dan status laporan pajak', core:false, roles:['superadmin','owner','direktur','admin','finance','konsultan','klien']},
+  {id:'administrasi', name:'Pengaturan', desc:'Manajemen modul, user, pengaturan sistem, dan log aktivitas', core:true, roles:['superadmin']},
   {id:'profile', name:'Profil Saya', desc:'Akun pribadi', core:true, roles:['superadmin','owner','direktur','admin','konsultan','klien','finance']},
 ];
 
@@ -2510,7 +2510,7 @@ function renderReminderSettings(){
       `<button class="btn-secondary" onclick="exportRemindersExcel()">${fileIconSvg('#1D6F42','XLS')}<span class="btn-label">Export Excel</span></button>${addButtonHtml}`);
   }
 
-  return head('Buat Reminder Pekerjaan', 'Atur jadwal pengingat kewajiban pajak untuk setiap klien') + renderReminderTabsTable() + modalHtml + tabsHtml + bodyHtml;
+  return head('Reminder Pekerjaan', 'Atur jadwal pengingat kewajiban pajak untuk setiap klien') + renderReminderTabsTable() + modalHtml + tabsHtml + bodyHtml;
 }
 
 /* ================================================================
@@ -5894,7 +5894,7 @@ function renderAdministrasiModule(){
     + renderActivityLog(true)
     + `<div class="section-title" style="font-size:15px;margin:28px 0 12px;">Rilis Update</div>`
     + renderRilisUpdateTable();
-  return head('Administrasi', 'Manajemen modul, user, pengaturan sistem, dan log aktivitas — dalam satu tempat') + tabsHtml + body;
+  return head('Pengaturan', 'Manajemen modul, user, pengaturan sistem, dan log aktivitas — dalam satu tempat') + tabsHtml + body;
 }
 
 // Riwayat rilis update aplikasi — tambahkan 1 baris baru paling atas tiap kali ada update dikirim ke pengguna.
@@ -5907,6 +5907,10 @@ const RILIS_UPDATE_LOG = [
   { seri: 'v2.1', tanggal: '2026-07-23', jam: '16:00' },
   { seri: 'v2.2', tanggal: '2026-07-23', jam: '18:00' },
   { seri: 'v2.3', tanggal: '2026-07-24', jam: '09:00' },
+  { seri: 'v2.4', tanggal: '2026-09-20', jam: '10:00' },
+  { seri: 'v2.5', tanggal: '2026-09-21', jam: '14:00' },
+  { seri: 'v2.6', tanggal: '2026-09-24', jam: '11:00' },
+  { seri: 'v3.0', tanggal: '2026-09-25', jam: '09:00' },
 ];
 function renderRilisUpdateTable(){
   const rows = [...RILIS_UPDATE_LOG].reverse().map((r, i) => `
@@ -5921,41 +5925,18 @@ function renderChangelogModal(){
     <div class="doc-modal-box" style="max-width:520px;">
       <button class="doc-modal-close" onclick="state.changelogOpen=false; render();" title="Tutup">&times;</button>
       <div class="section-title">Riwayat Update Aplikasi</div>
-      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-6px;margin-bottom:14px;">Update terbaru: ${getUpdateTerakhir() || '-'}</p>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-6px;margin-bottom:14px;">Versi terbaru: ${getUpdateTerakhir() || '-'}</p>
       ${renderRilisUpdateTable()}
     </div>
   </div>`;
 }
+// Versi ditentukan dari RILIS_UPDATE_LOG (dikelola manual di sini setiap ada
+// rilis fitur besar) — lebih bermakna buat pengguna daripada tanggal-jam commit
+// mentah dari GitHub, karena bisa langsung dicocokkan ke tabel Riwayat Update.
 function getUpdateTerakhir(){
-  if (updateTerakhirDariGithub) return updateTerakhirDariGithub;
   if (!RILIS_UPDATE_LOG.length) return null;
-  const r = RILIS_UPDATE_LOG[RILIS_UPDATE_LOG.length - 1];
-  return formatDDMMYY(r.tanggal) + ', ' + r.jam + ' (manual)';
+  return RILIS_UPDATE_LOG[RILIS_UPDATE_LOG.length - 1].seri;
 }
-
-// Ambil tanggal-waktu commit TERAKHIR untuk index.html langsung dari GitHub API —
-// otomatis akurat, tidak perlu diisi manual lagi. Kalau gagal (offline/repo privat/dibuka
-// dari file lokal tanpa internet), diam-diam biarkan fallback ke RILIS_UPDATE_LOG di atas.
-let updateTerakhirDariGithub = null;
-async function ambilUpdateTerakhirDariGithub(){
-  try {
-    const res = await fetch('https://api.github.com/repos/jundicomp/pkp/commits?path=index.html&per_page=1');
-    if (!res.ok) return;
-    const data = await res.json();
-    if (Array.isArray(data) && data[0] && data[0].commit && data[0].commit.committer && data[0].commit.committer.date){
-      const tglUTC = new Date(data[0].commit.committer.date);
-      const tglWIB = new Date(tglUTC.getTime() + 7*60*60*1000); // GitHub kasih UTC, geser +7 jam jadi WIB
-      const dd = String(tglWIB.getUTCDate()).padStart(2,'0');
-      const mm = String(tglWIB.getUTCMonth()+1).padStart(2,'0');
-      const yy = String(tglWIB.getUTCFullYear()).slice(-2);
-      const hh = String(tglWIB.getUTCHours()).padStart(2,'0');
-      const mi = String(tglWIB.getUTCMinutes()).padStart(2,'0');
-      updateTerakhirDariGithub = `${dd}-${mm}-${yy}, ${hh}:${mi} WIB`;
-      render();
-    }
-  } catch (err) { /* diam-diam gagal — sidebar tetap tampil, cuma pakai data manual sebagai cadangan */ }
-}
-ambilUpdateTerakhirDariGithub();
 
 /* ================================================================
    KEUANGAN — gabungan Invoice & Laporan Pajak (tab ditampilkan sesuai role)
@@ -6007,7 +5988,7 @@ function renderKlienPajakModule(){
   </div>`;
   const categoryCardsHtml = state.klienPajakTab === 'data' ? renderWajibPajakCategoryCards() : '';
   const body = state.klienPajakTab === 'data' ? renderClientManagement(true) : renderClientMonitoring(true);
-  return head('Daftar Klien Pajak', 'Data wajib pajak dan profil 360° tiap klien — dalam satu tempat') + categoryCardsHtml + tabsHtml + body;
+  return head('Klien Pajak', 'Data wajib pajak dan profil 360° tiap klien — dalam satu tempat') + categoryCardsHtml + tabsHtml + body;
 }
 
 // ============================================================
@@ -7126,7 +7107,7 @@ function renderShell(){
       <div class="brand" onclick="acakWarnaSidebar()">${sealHtml}<div><div class="brand-name">${s.namaKantor || 'Portal Konsultan Pajak'}</div><div class="brand-sub">KONSULTAN PAJAK</div></div></div>
       <div class="nav-section-title">Menu</div>
       <nav>${navItems || '<div style="padding:10px;font-size:12px;color:#9AA4BB;">Tidak ada modul aktif</div>'}</nav>
-      <div class="sidebar-footer" onclick="state.changelogOpen=true; render();" style="cursor:pointer;">${getUpdateTerakhir() ? `Update Terbaru: ${getUpdateTerakhir()}<br>` : ''}&copy; 2026 Jundezain</div>
+      <div class="sidebar-footer" onclick="state.changelogOpen=true; render();" style="cursor:pointer;">${getUpdateTerakhir() ? `Versi ${getUpdateTerakhir()}<br>` : ''}&copy; 2026 Jundezain</div>
       ${state.changelogOpen ? renderChangelogModal() : ''}
     </aside>
     <main>
