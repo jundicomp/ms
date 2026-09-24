@@ -142,6 +142,7 @@
   .matrix td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border);}
   .matrix td:first-child{text-align:left;font-weight:500;}
   .mod-desc{font-size:10.5px;color:var(--ink-soft);font-weight:400;display:block;}
+  .cell-clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;}
   .toggle{width:34px;height:19px;border-radius:20px;background:#D9D5C6;position:relative;cursor:pointer;display:inline-block;border:none;padding:0;}
   .toggle::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform .15s;}
   .toggle.on{background:var(--gold);}
@@ -2174,10 +2175,10 @@ function setReminderTab(tab){ state.reminderView.tab = tab; render(); }
 // untuk intip cepat tanpa perlu klik.
 function renderIsiReminderCell(r){
   const semua = r.isiReminder.map(n => `${n}. ${REMINDER_ITEMS[n-1]}`);
-  const tampil = semua.slice(0, 3);
+  const tampil = semua.slice(0, 1);
   const sisa = semua.length - tampil.length;
   const tooltipText = semua.join(' | ').replace(/"/g, '&quot;');
-  let html = `<span style="font-size:12px;" title="${tooltipText}">${tampil.join('<br>')}`;
+  let html = `<span style="font-size:12px;" title="${tooltipText}">${tampil.join('')}`;
   if (sisa > 0){
     html += `<br><span onclick="bukaDetailIsiReminder('${r.id}')" style="color:var(--gold);cursor:pointer;font-weight:600;text-decoration:underline;">+ ${sisa} lainnya</span>`;
   }
@@ -2327,15 +2328,15 @@ function renderReminderSettings(){
     // lengkap) — dan tetap ada tooltip hover (atribut title bawaan browser)
     // untuk intip cepat tanpa perlu klik.
     const reminderTableColumns = [
-      { key:'jenisJadwal', label:'Jenis Jadwal', searchable:true, sortValue:(r)=>r.jenisJadwal.toLowerCase(), searchValue:(r)=>r.jenisJadwal, cell:(r)=>r.jenisJadwal },
-      { key:'wajibPajak', label:'Wajib Pajak', searchable:true, sortValue:(r)=>(r.wajibPajak||'').toLowerCase(), searchValue:(r)=>r.wajibPajak, cell:(r)=> r.wajibPajak==='Badan Usaha' ? `Badan Usaha<span class="mod-desc" style="display:inline;"> (${r.badanUsahaSubtype||'-'})</span>` : 'Orang Pribadi' },
-      { key:'tanggal', label:'Tanggal', searchable:false, sortValue:(r)=>r.tanggalValue||'', nowrap:true, cell:(r)=> r.tanggalMode === 'Bulan Ini Saja'
+      { key:'jenisJadwal', label:'Jenis Jadwal', searchable:true, sortValue:(r)=>r.jenisJadwal.toLowerCase(), searchValue:(r)=>r.jenisJadwal, cell:(r)=>`<span class="cell-clamp2">${r.jenisJadwal}</span>` },
+      { key:'wajibPajak', label:'Wajib Pajak', searchable:true, sortValue:(r)=>(r.wajibPajak||'').toLowerCase(), searchValue:(r)=>r.wajibPajak, cell:(r)=> `<span class="cell-clamp2">${r.wajibPajak==='Badan Usaha' ? `Badan Usaha<span class="mod-desc" style="display:inline;"> (${r.badanUsahaSubtype||'-'})</span>` : 'Orang Pribadi'}</span>` },
+      { key:'tanggal', label:'Tanggal', searchable:false, sortValue:(r)=>r.tanggalValue||'', nowrap:true, cell:(r)=> `<span class="cell-clamp2">${r.tanggalMode === 'Bulan Ini Saja'
           ? `${formatDDMMYY(r.tanggalValue)} <span class="mod-desc" style="display:inline;">(bulan ini saja)</span>`
-          : `Tanggal ${r.tanggalValue || '-'} setiap bulan` },
-      { key:'lama', label:'Lama Reminder', searchable:false, sortValue:(r)=>Number(r.lamaReminderHari)||0, cell:(r)=>`${r.lamaReminderHari} hari <span class="mod-desc" style="display:inline;">(s.d. hari ke-${r.lamaReminderHari})</span>` },
+          : `Tanggal ${r.tanggalValue || '-'} setiap bulan`}</span>` },
+      { key:'lama', label:'Lama Reminder', searchable:false, sortValue:(r)=>Number(r.lamaReminderHari)||0, cell:(r)=>`<span class="cell-clamp2">${r.lamaReminderHari} hari <span class="mod-desc" style="display:inline;">(s.d. hari ke-${r.lamaReminderHari})</span></span>` },
       { key:'klien', label:'Klien', searchable:true, sortValue:(r)=>{ const c=MOCK_CLIENTS.find(x=>x.id===r.clientId); return c?c.nama.toLowerCase():''; }, searchValue:(r)=>{ const c=MOCK_CLIENTS.find(x=>x.id===r.clientId); return c?c.nama:''; }, cell:(r)=>{
         const client = MOCK_CLIENTS.find(c=>c.id===r.clientId);
-        return client ? client.nama : '<span style="color:var(--ink-soft);">Klien dihapus</span>';
+        return `<span class="cell-clamp2">${client ? client.nama : '<span style="color:var(--ink-soft);">Klien dihapus</span>'}</span>`;
       }},
       { key:'isi', label:'Isi Reminder', searchable:true, searchValue:(r)=>r.isiReminder.map(n=>REMINDER_ITEMS[n-1]).join(' '), cell:(r)=>renderIsiReminderCell(r) },
       { key:'status', label:'Status', searchable:false, cell:(r)=>{
@@ -2346,13 +2347,14 @@ function renderReminderSettings(){
       }},
       { key:'aksi', label:'Aksi', cell:(r)=>{
         const isActive = isReminderActiveOn(r, REMINDER_TODAY);
+        const iconUndo = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
         const selesaiBtn = isActive
-          ? `<span style="cursor:pointer;color:var(--sage);font-size:12.5px;margin-right:12px;" onclick="markReminderSelesai('${r.id}')">${ICON_CHECK}Selesai</span>`
-          : `<span style="cursor:pointer;color:var(--ink-soft);font-size:12.5px;margin-right:12px;" onclick="undoReminderSelesai('${r.id}')">Batalkan</span>`;
-        return `<div style="text-align:right;white-space:nowrap;">
+          ? `<span title="Tandai Selesai" style="cursor:pointer;color:var(--sage);" onclick="markReminderSelesai('${r.id}')">${ICON_CHECK.replace('margin-right:4px;','')}</span>`
+          : `<span title="Batalkan (kembali ke Aktif)" style="cursor:pointer;color:var(--ink-soft);" onclick="undoReminderSelesai('${r.id}')">${iconUndo}</span>`;
+        return `<div style="text-align:right;white-space:nowrap;display:flex;gap:10px;justify-content:flex-end;align-items:center;">
           ${selesaiBtn}
-          <span style="cursor:pointer;color:var(--slate);font-size:12.5px;margin-right:12px;" onclick="openReminderForm('edit','${r.id}')">${ICON_EDIT}Ubah</span>
-          <span style="cursor:pointer;color:var(--danger);font-size:12.5px;" onclick="deleteReminder('${r.id}')">${ICON_TRASH}Hapus</span>
+          <span title="Ubah" style="cursor:pointer;color:var(--slate);" onclick="openReminderForm('edit','${r.id}')">${ICON_EDIT.replace('margin-right:4px;','')}</span>
+          <span title="Hapus" style="cursor:pointer;color:var(--danger);" onclick="deleteReminder('${r.id}')">${ICON_TRASH.replace('margin-right:4px;','')}</span>
         </div>`;
       }},
     ];
