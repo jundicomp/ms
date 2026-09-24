@@ -517,7 +517,40 @@ let BIDANG_USAHA_OPTIONS = ['Perdagangan Besar','Jasa Konstruksi'];
 const KATEGORI_KLIEN_OPTIONS = ['UMKM','Korporasi','Ekspatriat','Lainnya'];
 const STATUS_KLIEN_OPTIONS = ['Aktif','Nonaktif','Prospek'];
 const JENIS_KONTRAK_OPTIONS = ['Retainer Bulanan','Per-Project'];
-const JENIS_LAYANAN_OPTIONS = ['SPT Tahunan OP','SPT Tahunan Badan','SPT Masa PPh 21','SPT Masa PPh 23','SPT Masa PPN','Tax Planning','Pendampingan Audit','Restitusi Pajak','Keberatan & Banding','SP2DK'];
+// Disusun URUT sesuai kelompok tanggal jatuh tempo (Tanggal 1-15, 16-31, Tahunan,
+// lalu Berdasarkan Kasus) — supaya checklist di form Klien dan pengelompokan
+// kartu Reminder konsisten. 3 nama diperbarui (lihat MIGRASI_JENIS_LAYANAN di
+// bawah) supaya sama persis dengan istilah resmi; data klien lama otomatis
+// disesuaikan, tidak hilang.
+const JENIS_LAYANAN_OPTIONS = [
+  'SPT PPh Pasal 21', 'SPT PPh Unifikasi', 'PPh Pasal 25', 'PPh Final UMKM',
+  'SPT PPN', 'PPN KMS',
+  'SPT Tahunan OP', 'SPT Tahunan Badan',
+  'SP2DK', 'Tax Planning', 'Keberatan & Banding', 'Pendampingan Audit', 'Restitusi Pajak',
+];
+// Migrasi otomatis nama lama -> baru, dijalankan sekali di setiap data klien
+// begitu dimuat (lihat migrasikanJenisLayananKlien()) — supaya klien yang
+// sudah pernah pilih pakai nama lama tetap ke-mapping dengan benar, tidak
+// perlu diedit ulang manual satu-satu.
+const MIGRASI_JENIS_LAYANAN = {
+  'SPT Masa PPh 21': 'SPT PPh Pasal 21',
+  'SPT Masa PPh 23': 'SPT PPh Unifikasi',
+  'SPT Masa PPN': 'SPT PPN',
+};
+function migrasikanJenisLayananKlien(daftarLama){
+  if (!daftarLama || !daftarLama.length) return daftarLama;
+  return daftarLama.map(item => MIGRASI_JENIS_LAYANAN[item] || item);
+}
+// Peta: 1 jenis layanan -> masuk kartu Reminder yang mana (index di
+// REMINDER_BLOCKS di bawah). Layanan "by kasus" semua masuk 1 kartu terakhir
+// (blok 4) — tidak berjadwal tanggal tetap, jadi tidak masuk blok 0-3.
+const JENIS_LAYANAN_KE_BLOK = {
+  'SPT PPh Pasal 21': 0, 'SPT PPh Unifikasi': 0, 'PPh Pasal 25': 0, 'PPh Final UMKM': 0,
+  'SPT PPN': 1, 'PPN KMS': 1,
+  'SPT Tahunan OP': 2,
+  'SPT Tahunan Badan': 3,
+  'SP2DK': 4, 'Tax Planning': 4, 'Keberatan & Banding': 4, 'Pendampingan Audit': 4, 'Restitusi Pajak': 4,
+};
 const JENIS_PAJAK_OPTIONS = ['PPh 21','PPh 23','PPN','PPh Badan'];
 const METODE_PEMBUKUAN_OPTIONS = ['Pembukuan','Pencatatan'];
 const TARIF_PPH_OPTIONS = ['Normal','PP 23 (0,5% UMKM)'];
@@ -602,6 +635,7 @@ const REMINDER_BLOCKS = [
   { title:'Kewajiban Tanggal 16 - 31 Setiap Bulan', items:[7,8,9], rangeStart:16, rangeEnd:31 },
   { title:'Deadline Tahunan Setiap 31 Maret', items:[10,11] },
   { title:'Deadline Tahunan Setiap 30 April', items:[12,13] },
+  { title:'Layanan Berdasarkan Kasus (Tidak Berjadwal Tetap)', items:[], isKasus:true },
 ];
 
 // "Hari ini" untuk demo diselaraskan dengan tanggal berjalan aplikasi ini (bukan jam sistem asli),
@@ -868,7 +902,7 @@ async function muatUlangDaftarKlien(){
   const data = await callBackendUtama('getAllClients');
   if (!data.success) return false;
   MOCK_CLIENTS.length = 0;
-  data.clients.forEach(c => MOCK_CLIENTS.push({ ...c, foto: c.fotoURL || null }));
+  data.clients.forEach(c => MOCK_CLIENTS.push({ ...c, foto: c.fotoURL || null, jenisLayanan: migrasikanJenisLayananKlien(c.jenisLayanan) }));
   return true;
 }
 async function muatUlangDaftarPekerjaan(){
@@ -2125,15 +2159,30 @@ function renderReminderBlocksHtml(){
     { color: STAT_CARD_PALETTE[1].color, bg: STAT_CARD_PALETTE[1].bg, icon: ICON_STAT_RECEIPT },
     { color: STAT_CARD_PALETTE[3].color, bg: STAT_CARD_PALETTE[3].bg, icon: ICON_STAT_USERS },
     { color: STAT_CARD_PALETTE[2].color, bg: STAT_CARD_PALETTE[2].bg, icon: ICON_STAT_BUILDING },
+    { color: STAT_CARD_PALETTE[4].color, bg: STAT_CARD_PALETTE[4].bg, icon: ICON_STAT_DOTS },
   ];
   const blocksHtml = REMINDER_BLOCKS.map((block, idx) => {
     const matchingClients = new Set();
+
+    // Sumber 1 (BARU): klien yang checklist Jenis Layanan-nya cocok dengan blok ini.
+    // Untuk blok "by kasus" (idx 4), semua klien dengan layanan itu langsung masuk —
+    // tidak ada pola tanggal yang perlu dicek. Untuk blok 0-3, dianggap "berlaku"
+    // terus (klien tsb memang berlangganan layanan itu), tidak perlu re-cek per bulan.
+    MOCK_CLIENTS.forEach(c => {
+      (c.jenisLayanan || []).forEach(layanan => {
+        if (JENIS_LAYANAN_KE_BLOK[layanan] === idx) matchingClients.add(c.nama);
+      });
+    });
+
+    // Sumber 2 (LAMA, tetap didukung): reminder manual/khusus yang dibuat lewat
+    // form "Reminder Khusus" — masih dicek pola tanggalnya seperti sebelumnya.
     MOCK_REMINDERS.forEach(r => {
       if (reminderBelongsToBlock(r, idx) && isReminderPendingThisMonth(r, REMINDER_TODAY)){
         const c = MOCK_CLIENTS.find(cl => cl.id === r.clientId);
         if (c) matchingClients.add(c.nama);
       }
     });
+
     const clientNames = Array.from(matchingClients);
     const clientListHtml = clientNames.length
       ? clientNames.map(n => `<li>${n}</li>`).join('')
@@ -4197,6 +4246,28 @@ function konsultanOptionsHtml(selected){
   return `<option value="">Belum ditugaskan</option>` +
     konsultans.map(u=>`<option value="${u.email}" ${u.email===selected?'selected':''}>${u.nama} (${roleName(u.role)})</option>`).join('');
 }
+// Checklist "Jenis Layanan" dikelompokkan persis sesuai kartu Reminder
+// (lihat REMINDER_BLOCKS + JENIS_LAYANAN_KE_BLOK) — supaya urutannya intuitif:
+// begitu klien dicentang, langsung kebayang masuk kartu yang mana.
+function renderJenisLayananGrouped(name, selected){
+  const perBlok = REMINDER_BLOCKS.map(() => []);
+  Object.keys(JENIS_LAYANAN_KE_BLOK).forEach(item => {
+    const idx = JENIS_LAYANAN_KE_BLOK[item];
+    if (perBlok[idx]) perBlok[idx].push(item);
+  });
+  return REMINDER_BLOCKS.map((block, idx) => {
+    if (!perBlok[idx].length) return '';
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:7.6px;text-transform:uppercase;letter-spacing:.03em;color:var(--gold);font-weight:700;margin-bottom:4px;">${block.title}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px;">
+        ${perBlok[idx].map(opt => `
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;color:var(--ink);margin-bottom:6px;">
+          <input type="checkbox" class="${name}" value="${opt}" ${selected&&selected.includes(opt)?'checked':''} style="width:auto;margin:0;">${opt}
+        </label>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
 function checkboxGroup(name, options, selected){
   return options.map(opt => `
     <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;color:var(--ink);margin-bottom:6px;">
@@ -4352,7 +4423,7 @@ function renderClientManagement(embedded){
             <div><label>Kategori Klien</label>${selectHtml('cf-kategoriKlien', KATEGORI_KLIEN_OPTIONS, f.kategoriKlien)}</div>
           </div>
           <label style="margin-top:4px;">Jenis Layanan</label>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px;margin-bottom:8px;">${checkboxGroup('cf-layanan', JENIS_LAYANAN_OPTIONS, f.jenisLayanan)}</div>
+          <div style="margin-bottom:8px;">${renderJenisLayananGrouped('cf-layanan', f.jenisLayanan)}</div>
 
           <div class="section-title" style="font-size:13px;margin-top:12px;">Data Perpajakan Teknis</div>
           <label>Jenis Pajak yang Dikelola</label>
