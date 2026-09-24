@@ -108,7 +108,8 @@
   .logout-btn{margin-top:12px;padding:9px;text-align:center;font-size:12.5px;color:#D2D6E0;border:1px solid rgba(255,255,255,.15);border-radius:7px;cursor:pointer;}
   .logout-btn:hover{background:rgba(255,255,255,.06);}
 
-  main{flex:1;padding:32px 40px;max-width:1080px;}
+  main{flex:1;padding:32px 40px;max-width:1080px;transition:max-width .2s ease;}
+  #sidebar.collapsed ~ main{max-width:100%;}
   .page-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:24px;}
   h1{font-family:var(--font-display);font-size:26px;font-weight:600;margin:0 0 4px;color:var(--navy);}
   .page-sub{font-size:13px;color:var(--ink-soft);margin:0;}
@@ -7261,6 +7262,50 @@ function mulaiTimerLoading(){
 document.addEventListener('click', function(ev){
   if (ev.target.closest('.login-box .primary')) { mulaiAnimasiWarnaLatar(); mulaiTimerLoading(); }
 });
+
+// ============================================================
+// DETEKSI UPDATE OTOMATIS — cek berkala apakah index.html yang di-deploy
+// sudah berubah (tanpa perlu kelola nomor versi manual tiap kali deploy).
+// Kalau berubah, semua user yang sedang aktif otomatis dikasih tahu lewat
+// overlay, lalu halaman dimuat ulang sendiri.
+// ============================================================
+let _snapshotHalamanSaatIni = null;
+function _hashSederhana(str){
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 47){ // ambil sampel tiap 47 karakter — cukup akurat, jauh lebih cepat dari hash penuh utk file besar
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return hash;
+}
+async function cekUpdateAplikasi(){
+  try {
+    const resp = await fetch(window.location.pathname + '?_cek=' + Date.now(), { cache: 'no-store' });
+    if (!resp.ok) return;
+    const html = await resp.text();
+    const snapshot = html.length + ':' + _hashSederhana(html);
+    if (_snapshotHalamanSaatIni === null){ _snapshotHalamanSaatIni = snapshot; return; } // baseline pertama kali, belum tentu ada perubahan
+    if (snapshot !== _snapshotHalamanSaatIni){
+      tampilkanOverlayUpdateTersedia();
+      setTimeout(() => { window.location.reload(); }, 2500);
+    }
+  } catch(err) { /* kalau gagal fetch (offline sebentar, dsb), diamkan saja — coba lagi di pengecekan berikutnya */ }
+}
+function tampilkanOverlayUpdateTersedia(){
+  if (document.getElementById('update-overlay')) return; // jangan dobel kalau sudah tampil
+  const div = document.createElement('div');
+  div.id = 'update-overlay';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,41,.94);z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-family:var(--font-body, sans-serif);';
+  div.innerHTML = `
+    <div style="width:42px;height:42px;border:3px solid rgba(255,255,255,.25);border-top-color:#B8862B;border-radius:50%;animation:spinUpdateOverlay 0.9s linear infinite;margin-bottom:18px;"></div>
+    <div style="font-size:15px;font-weight:600;">Tunggu, sistem sedang melakukan update...</div>
+    <div style="font-size:12px;color:#9AA4BB;margin-top:6px;">Halaman akan otomatis dimuat ulang sebentar lagi</div>`;
+  document.body.appendChild(div);
+  const style = document.createElement('style');
+  style.textContent = '@keyframes spinUpdateOverlay{to{transform:rotate(360deg);}}';
+  document.head.appendChild(style);
+}
+setInterval(cekUpdateAplikasi, 3 * 60 * 1000); // cek tiap 3 menit
+setTimeout(cekUpdateAplikasi, 5000); // ambil baseline begitu halaman selesai dimuat
 
 render(); // tampilkan layar "Memuat..." dulu
 mulaiAplikasi();
