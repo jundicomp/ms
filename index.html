@@ -468,15 +468,7 @@ const TELEGRAM_AKSI_DEFS = [
 let telegramNotifConfig = {}; // aksiId -> {aktif, kirimGrup, kirimPribadi} — diisi dari Sheet saat dibuka
 
 // Data awal (akan tertimpa data asli dari Sheet setelah login berhasil)
-const MOCK_USERS = [
-  {nama:'Andi Wijaya', email:'superadmin@kantorpajak.id', password:'admin123', role:'superadmin', status:'Aktif', foto:null, whatsapp:'0812-3456-7890', lastActiveMinutes:0},
-  {nama:'Hendra Kusuma', email:'owner@kantorpajak.id', password:'admin123', role:'owner', status:'Aktif', foto:null, whatsapp:'0811-2233-9900', lastActiveMinutes:60},
-  {nama:'Maria Susanti', email:'direktur@kantorpajak.id', password:'admin123', role:'direktur', status:'Aktif', foto:null, whatsapp:'0812-6677-8899', lastActiveMinutes:90},
-  {nama:'Dewi Kartika', email:'admin@kantorpajak.id', password:'admin123', role:'admin', status:'Aktif', foto:null, whatsapp:'0813-2233-4455', lastActiveMinutes:2},
-  {nama:'Rian Pratama', email:'konsultan@kantorpajak.id', password:'admin123', role:'konsultan', status:'Aktif', foto:null, whatsapp:'0821-9988-7766', lastActiveMinutes:14},
-  {nama:'Budi Santoso', email:'klien@kantorpajak.id', password:'admin123', role:'klien', status:'Aktif', foto:null, whatsapp:'0856-1122-3344', lastActiveMinutes:180},
-  {nama:'Siti Marlina', email:'finance@kantorpajak.id', password:'admin123', role:'finance', status:'Nonaktif', foto:null, whatsapp:'0878-5566-7788', lastActiveMinutes:4320},
-];
+const MOCK_USERS = []; // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan supaya tidak ada lagi akun fiktif nongol kalau proses muat data gagal
 
 // ---------- DATA KLIEN & OPSI FIELD ----------
 // Daftar Bentuk Badan — BUKAN daftar tetap, bisa bertambah dari waktu ke waktu
@@ -567,40 +559,7 @@ const METODE_PEMBUKUAN_OPTIONS = ['Pembukuan','Pencatatan'];
 const TARIF_PPH_OPTIONS = ['Normal','PP 23 (0,5% UMKM)'];
 
 let CLIENT_SEQ = 4;
-const MOCK_CLIENTS = [
-  { id:'CLI-0001', jenisWP:'Badan', nama:'PT Sinar Abadi', npwp:'01.234.567.8-901.000', nik:'', nitku:'0001',
-    tanggalTerdaftarNpwp:'2015-03-10', kppTerdaftar:'KPP Pratama Jakarta Setiabudi',
-    bentukBadan:'PT', nomorAkta:'AHU-012345.AH.01.01 Tahun 2015', bidangUsaha:'Perdagangan Besar',
-    namaPenanggungJawab:'Hendra Wijaya', npwpPenanggungJawab:'09.876.543.2-101.000', modalDisetor:'500000000',
-    tempatLahir:'', tanggalLahir:'', pekerjaan:'', statusNikah:'', jumlahTanggungan:'', npwpPasangan:'',
-    alamatNpwp:'Jl. Sudirman No. 45, Jakarta Selatan', alamatDomisili:'Jl. Sudirman No. 45, Jakarta Selatan',
-    telepon:'021-5551234', email:'finance@sinarabadi.co.id', kontakNama:'Maya Sari', kontakJabatan:'Finance Manager', kontakHp:'0812-3456-7890',
-    konsultanEmail:'konsultan@kantorpajak.id', jenisLayanan:['SPT Masa PPh 21','SPT Masa PPN'], jenisKontrak:'Retainer Bulanan',
-    tanggalMulaiKerjaSama:'2022-01-15', statusKlien:'Aktif', kategoriKlien:'Korporasi',
-    jenisPajak:['PPh 21','PPN','PPh Badan'], statusPKP:'Ya', metodePembukuan:'Pembukuan', tarifPPh:'Normal',
-    foto:null, tanggalInput:'2022-01-15' },
-  { id:'CLI-0002', jenisWP:'OP', nama:'Budi Santoso', npwp:'12.345.678.9-012.000', nik:'3271234567890001', nitku:'',
-    tanggalTerdaftarNpwp:'2018-06-20', kppTerdaftar:'KPP Pratama Jakarta Kebayoran Baru',
-    bentukBadan:'', nomorAkta:'', bidangUsaha:'', namaPenanggungJawab:'', npwpPenanggungJawab:'', modalDisetor:'',
-    tempatLahir:'Bandung', tanggalLahir:'1985-04-12', pekerjaan:'Konsultan Independen', statusNikah:'Kawin', jumlahTanggungan:'2', npwpPasangan:'',
-    alamatNpwp:'Jl. Melawai Raya No. 12, Jakarta Selatan', alamatDomisili:'Jl. Melawai Raya No. 12, Jakarta Selatan',
-    telepon:'0813-9988-7766', email:'budi.santoso@gmail.com', kontakNama:'', kontakJabatan:'', kontakHp:'',
-    konsultanEmail:'konsultan@kantorpajak.id', jenisLayanan:['SPT Tahunan OP'], jenisKontrak:'Per-Project',
-    tanggalMulaiKerjaSama:'2023-02-01', statusKlien:'Aktif', kategoriKlien:'UMKM',
-    jenisPajak:['PPh 21'], statusPKP:'Tidak', metodePembukuan:'Pencatatan', tarifPPh:'PP 23 (0,5% UMKM)',
-    foto:null, tanggalInput:'2023-02-01' },
-  { id:'CLI-0003', jenisWP:'Badan', nama:'CV Maju Jaya', npwp:'02.345.678.1-013.000', nik:'', nitku:'',
-    tanggalTerdaftarNpwp:'2021-09-05', kppTerdaftar:'KPP Pratama Tangerang',
-    bentukBadan:'CV', nomorAkta:'AHU-0056789.AH.01.03 Tahun 2021', bidangUsaha:'Jasa Konstruksi',
-    namaPenanggungJawab:'Joko Prasetyo', npwpPenanggungJawab:'', modalDisetor:'150000000',
-    tempatLahir:'', tanggalLahir:'', pekerjaan:'', statusNikah:'', jumlahTanggungan:'', npwpPasangan:'',
-    alamatNpwp:'Jl. Raya Serpong No. 8, Tangerang', alamatDomisili:'Jl. Raya Serpong No. 8, Tangerang',
-    telepon:'021-5559988', email:'admin@majujaya.co.id', kontakNama:'Joko Prasetyo', kontakJabatan:'Direktur', kontakHp:'0811-2233-4455',
-    konsultanEmail:'', jenisLayanan:['SPT Masa PPN'], jenisKontrak:'Retainer Bulanan',
-    tanggalMulaiKerjaSama:'2024-01-10', statusKlien:'Prospek', kategoriKlien:'UMKM',
-    jenisPajak:['PPN'], statusPKP:'Ya', metodePembukuan:'Pembukuan', tarifPPh:'Normal',
-    foto:null, tanggalInput:'2024-01-10' },
-];
+const MOCK_CLIENTS = []; // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan
 
 function delay(ms){ return new Promise(res=>setTimeout(res, ms)); }
 
@@ -629,16 +588,7 @@ const LAMA_REMINDER_OPTIONS = ['1','3','5','7','10','14'];
 let REMINDER_SEQ = 5;
 const MOCK_MEETING_MINUTES = []; // diisi dari Sheet saat login — tidak ada data contoh, murni fitur baru
 const MOCK_LAYANAN_SELESAI = new Set(); // isi: "clientId::layanan" untuk bulan berjalan — diisi saat login
-const MOCK_REMINDERS = [
-  { id:'REM-0001', jenisJadwal:'Jadwal Rutin', wajibPajak:'Badan Usaha', badanUsahaSubtype:'PT Umum', tanggalMode:'Setiap Tanggal Ini', tanggalValue:'5',
-    lamaReminderHari:'5', clientId:'CLI-0001', isiReminder:[1,3], selesaiTanggal:null },
-  { id:'REM-0002', jenisJadwal:'Jadwal Sekali', wajibPajak:'Orang Pribadi', badanUsahaSubtype:'', tanggalMode:'Bulan Ini Saja', tanggalValue:'2026-07-05',
-    lamaReminderHari:'10', clientId:'CLI-0002', isiReminder:[10,11], selesaiTanggal:null },
-  { id:'REM-0003', jenisJadwal:'Jadwal Rutin', wajibPajak:'Badan Usaha', badanUsahaSubtype:'CV/Firma', tanggalMode:'Setiap Tanggal Ini', tanggalValue:'30',
-    lamaReminderHari:'10', clientId:'CLI-0003', isiReminder:[7,8,9], selesaiTanggal:null },
-  { id:'REM-0004', jenisJadwal:'Jadwal Rutin', wajibPajak:'Badan Usaha', badanUsahaSubtype:'PT Umum', tanggalMode:'Setiap Tanggal Ini', tanggalValue:'8',
-    lamaReminderHari:'3', clientId:'CLI-0002', isiReminder:[12,13], selesaiTanggal:null },
-];
+const MOCK_REMINDERS = []; // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan
 
 // ---------- 4 BLOK KELOMPOK JATUH TEMPO ----------
 // Pengelompokan berdasarkan nomor item reminder (1–13), sesuai kategori jatuh tempo pajak.
@@ -736,46 +686,10 @@ const JOB_STATUS_BADGE = {
 const JOB_STATUS_FORM_OPTIONS = ['Belum Dikerjakan','Sedang Dikerjakan','Menunggu Persetujuan'];
 
 let JOB_SEQ = 5;
-const MOCK_JOBS = [
-  { id:'JOB-0001', judul:'Review SPT Masa PPh 21 - PT Sinar Abadi', deskripsi:'Periksa kelengkapan bukti potong sebelum lapor ke DJP',
-    klienId:'CLI-0001', ditugaskanKe:'konsultan@kantorpajak.id', dibuatOleh:'admin@kantorpajak.id', approverEmail:'admin@kantorpajak.id', prioritas:'Tinggi',
-    tanggalMulai:'2026-07-05', waktuMulai:'08:30', tenggatWaktu:'2026-07-15', status:'Sedang Dikerjakan',
-    catatanPengerjaan:'', catatanPersetujuan:'', disetujuiOleh:'', tanggalSelesai:'', tanggalWaktuDisetujui:'' },
-  { id:'JOB-0002', judul:'Susun Laporan Keuangan Bulanan CV Maju Jaya', deskripsi:'Rekap transaksi bulan Juni 2026',
-    klienId:'CLI-0003', ditugaskanKe:'konsultan@kantorpajak.id', dibuatOleh:'admin@kantorpajak.id', approverEmail:'admin@kantorpajak.id', prioritas:'Sedang',
-    tanggalMulai:'2026-07-01', waktuMulai:'09:00', tenggatWaktu:'2026-07-10', status:'Menunggu Persetujuan',
-    catatanPengerjaan:'Laporan sudah disusun dan direkonsiliasi, siap dikirim ke klien setelah disetujui.',
-    catatanPersetujuan:'', disetujuiOleh:'', tanggalSelesai:'2026-07-07', tanggalWaktuDisetujui:'' },
-  { id:'JOB-0003', judul:'Input Data Invoice Bulan Juni', deskripsi:'Input seluruh invoice bulan Juni ke sistem',
-    klienId:'', ditugaskanKe:'finance@kantorpajak.id', dibuatOleh:'superadmin@kantorpajak.id', approverEmail:'superadmin@kantorpajak.id', prioritas:'Rendah',
-    tanggalMulai:'2026-07-02', waktuMulai:'13:15', tenggatWaktu:'2026-07-06', status:'Disetujui',
-    catatanPengerjaan:'Semua invoice sudah diinput dan dicek ulang totalnya.',
-    catatanPersetujuan:'Sudah dicek, datanya sesuai. Kerja bagus.', disetujuiOleh:'superadmin@kantorpajak.id', tanggalSelesai:'2026-07-05', tanggalWaktuDisetujui:'2026-07-05 16:45' },
-  { id:'JOB-0004', judul:'Lengkapi Data NPWP Klien Baru', deskripsi:'Lengkapi data NPWP untuk 3 klien baru bulan ini',
-    klienId:'', ditugaskanKe:'admin@kantorpajak.id', dibuatOleh:'superadmin@kantorpajak.id', approverEmail:'superadmin@kantorpajak.id', prioritas:'Sedang',
-    tanggalMulai:'2026-07-03', waktuMulai:'10:00', tenggatWaktu:'2026-07-08', status:'Belum Dikerjakan',
-    catatanPengerjaan:'', catatanPersetujuan:'', disetujuiOleh:'', tanggalSelesai:'', tanggalWaktuDisetujui:'' },
-];
+const MOCK_JOBS = []; // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan
 
 // ---------- Data awal Invoice (akan tertimpa data asli dari Sheet setelah login) ----------
-const MOCK_INVOICES = [
-  { id:'01/INV-VII/MS/2026', clientId:'CLI-0001', tanggal:'2026-07-01',
-    items:[{deskripsi:'Jasa Retainer Bulanan — Juli 2026', qty:1, harga:2500000}], kenaPPh23:false,
-    metodePembayaran:'Transfer Bank BCA 1234567890 a.n. Kantor Konsultan Pajak',
-    status:'Belum Lunas', dibuatOleh:'admin@kantorpajak.id' },
-  { id:'01/INV-VI/MS/2026', clientId:'CLI-0001', tanggal:'2026-06-01',
-    items:[{deskripsi:'Jasa Retainer Bulanan — Juni 2026', qty:1, harga:2500000}], kenaPPh23:false,
-    metodePembayaran:'Transfer Bank BCA 1234567890 a.n. Kantor Konsultan Pajak',
-    status:'Lunas', dibuatOleh:'admin@kantorpajak.id' },
-  { id:'01/INV-IV/MS/2026', clientId:'CLI-0001', tanggal:'2026-04-05',
-    items:[{deskripsi:'Konsultasi PPN Q1 2026', qty:1, harga:1200000}], kenaPPh23:true,
-    metodePembayaran:'Transfer Bank BCA 1234567890 a.n. Kantor Konsultan Pajak',
-    status:'Lunas', dibuatOleh:'admin@kantorpajak.id' },
-  { id:'01/INV-III/MS/2026', clientId:'CLI-0002', tanggal:'2026-03-10',
-    items:[{deskripsi:'Jasa SPT Tahunan Orang Pribadi 2025', qty:1, harga:1500000}], kenaPPh23:false,
-    metodePembayaran:'Transfer Bank BCA 1234567890 a.n. Kantor Konsultan Pajak',
-    status:'Lunas', dibuatOleh:'admin@kantorpajak.id' },
-];
+const MOCK_INVOICES = []; // diisi dari Sheet saat login — data contoh lama (termasuk nilai invoice fiktif) sengaja dikosongkan
 function invoiceTotal(inv){ return inv.items.reduce((s,it)=>s + (Number(it.qty)||0) * (Number(it.harga)||0), 0); }
 function invoicePPh23(inv){ return inv.kenaPPh23 ? Math.round(invoiceTotal(inv) * 0.02) : 0; }
 function invoiceTagihan(inv){ return invoiceTotal(inv) - invoicePPh23(inv); }
@@ -785,16 +699,7 @@ function invoiceRingkasanLayanan(inv){
 }
 
 let DOC_SEQ = 8;
-const MOCK_DOCUMENTS = [
-  { id:'DOC-0001', namaDokumen:'Bukti Potong PPh 21 Juni 2026', namaFile:'Bukti_Potong_PPh21_Juni2026.pdf', milik:'Klien', clientId:'CLI-0001', jenis:'pdf', ukuran:'320 KB', fileData:null, diunggahOleh:'konsultan@kantorpajak.id', tanggalUpload:'2026-07-03', waktuUpload:'09:15' },
-  { id:'DOC-0002', namaDokumen:'Laporan Keuangan Q2 2026', namaFile:'Laporan_Keuangan_Q2_2026.xlsx', milik:'Klien', clientId:'CLI-0001', jenis:'excel', ukuran:'145 KB', fileData:null, diunggahOleh:'admin@kantorpajak.id', tanggalUpload:'2026-07-01', waktuUpload:'14:20' },
-  { id:'DOC-0003', namaDokumen:'Kontrak Kerjasama 2022', namaFile:'Kontrak_Kerjasama_2022.docx', milik:'Klien', clientId:'CLI-0001', jenis:'word', ukuran:'210 KB', fileData:null, diunggahOleh:'admin@kantorpajak.id', tanggalUpload:'2022-01-15', waktuUpload:'10:00' },
-  { id:'DOC-0004', namaDokumen:'Scan KTP Direktur', namaFile:'Scan_KTP_Direktur.jpg', milik:'Klien', clientId:'CLI-0001', jenis:'gambar', ukuran:'1.2 MB', fileData:null, diunggahOleh:'konsultan@kantorpajak.id', tanggalUpload:'2026-06-20', waktuUpload:'11:45' },
-  { id:'DOC-0005', namaDokumen:'NPWP Perusahaan', namaFile:'NPWP_Perusahaan.pdf', milik:'Klien', clientId:'CLI-0001', jenis:'pdf', ukuran:'180 KB', fileData:null, diunggahOleh:'admin@kantorpajak.id', tanggalUpload:'2015-03-10', waktuUpload:'08:30' },
-  { id:'DOC-0006', namaDokumen:'Scan KTP Budi Santoso', namaFile:'Scan_KTP_Budi.jpg', milik:'Klien', clientId:'CLI-0002', jenis:'gambar', ukuran:'980 KB', fileData:null, diunggahOleh:'konsultan@kantorpajak.id', tanggalUpload:'2023-02-01', waktuUpload:'13:10' },
-  { id:'DOC-0007', namaDokumen:'SPT Tahunan 2025', namaFile:'SPT_Tahunan_2025.pdf', milik:'Klien', clientId:'CLI-0002', jenis:'pdf', ukuran:'410 KB', fileData:null, diunggahOleh:'konsultan@kantorpajak.id', tanggalUpload:'2026-03-10', waktuUpload:'15:00' },
-  { id:'DOC-0008', namaDokumen:'Template Surat Kuasa', namaFile:'Template_Surat_Kuasa.docx', milik:'Kantor', clientId:'', jenis:'word', ukuran:'95 KB', fileData:null, diunggahOleh:'superadmin@kantorpajak.id', tanggalUpload:'2026-02-10', waktuUpload:'09:00' },
-];
+const MOCK_DOCUMENTS = []; // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan
 
 // ---------- LOG AKTIVITAS SUNGGUHAN — dicatat otomatis dari aksi nyata di aplikasi ----------
 let ACTIVITY_SEQ = 1;
@@ -843,10 +748,7 @@ function formatChatTime(iso){
 
 // ---------- KALENDER & AGENDA — catatan pribadi (data lain ditarik otomatis dari modul lain) ----------
 let CALNOTE_SEQ = 3;
-const MOCK_CALENDAR_NOTES = [
-  { id:'CAL-0001', tanggal:'2026-07-10', waktu:'10:00', judul:'Meeting kickoff klien baru', deskripsi:'Bahas ruang lingkup layanan dengan CV Maju Jaya', dibuatOleh:'admin@kantorpajak.id', selesai:false },
-  { id:'CAL-0002', tanggal:'2026-07-14', waktu:'', judul:'Follow up dokumen NPWP', deskripsi:'Ingatkan Budi Santoso kirim scan NPWP terbaru', dibuatOleh:'konsultan@kantorpajak.id', selesai:false },
-];
+const MOCK_CALENDAR_NOTES = []; // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan
 const CALENDAR_TYPE_COLORS = {
   pekerjaan: 'var(--slate)',
   reminder: 'var(--gold)',
