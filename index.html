@@ -1026,30 +1026,43 @@ async function muatUlangLogAktivitas(){
 // Muat SEMUA data modul ke memori — dipanggil setelah login sungguhan
 // MAUPUN saat memulihkan sesi dari sessionStorage (refresh halaman).
 async function muatSemuaDataAplikasi(email){
-  // PARALEL (bukan satu-satu berurutan) — tiap panggilan ke Apps Script makan
-  // waktu ~1-2.5 detik sendiri-sendiri. Kalau dipanggil berurutan (await demi
-  // await), 9 panggilan bisa menumpuk jadi 20+ detik total. Dengan paralel,
-  // totalnya cuma setara 1 panggilan PALING LAMBAT, bukan jumlah semuanya.
-  // Promise.allSettled dipakai (bukan Promise.all) supaya kalau salah satu
-  // gagal, yang lain tetap lanjut selesai — sama seperti try/catch terpisah
-  // yang dipakai sebelumnya per pemanggilan.
-  await Promise.allSettled([
+  // PARALEL per GELOMBANG (bukan 15 sekaligus, bukan juga satu-satu berurutan).
+  // 15 permintaan bersamaan ke 1 Apps Script Web App yang sama itu SERING
+  // membuat sebagian permintaan antre lama atau gagal diam-diam — gejalanya
+  // persis "kadang muncul data lama/kosong" dan "lemot", padahal sebenarnya
+  // itu permintaan yang gagal dan hasilnya cuma dilewati begitu saja. Dipecah
+  // jadi 3 gelombang kecil (~5 tiap gelombang) supaya bebannya lebih ringan,
+  // sambil totalnya tetap jauh lebih cepat dibanding kalau 15-15 berurutan.
+  const gelombang1 = await Promise.allSettled([
     muatUlangDaftarUser(email),
     muatUlangDaftarKlien(),
     muatUlangDaftarPekerjaan(),
     muatUlangDaftarReminder(),
     muatUlangDaftarNotulensi(),
+  ]);
+  const gelombang2 = await Promise.allSettled([
     muatUlangLayananSelesai(),
     muatUlangDaftarInvoice(),
     muatUlangDaftarDokumen(),
     muatUlangCatatanKalender(),
     muatUlangPesan(),
+  ]);
+  const gelombang3 = await Promise.allSettled([
     muatUlangLogAktivitas(),
     muatOverrideSayaSendiri(email),
     api.getBidangUsahaList(),
     api.getBentukBadanList(),
     api.getTelegramNotifSettings(),
   ]);
+
+  // Kalau ADA yang beneran gagal (bukan cuma balik false/kosong tapi error
+  // sungguhan kayak network timeout), kasih tahu jelas — daripada user bingung
+  // lihat data lama/kosong tanpa tahu sebabnya.
+  const semuaHasil = [...gelombang1, ...gelombang2, ...gelombang3];
+  const jumlahGagal = semuaHasil.filter(h => h.status === 'rejected').length;
+  if (jumlahGagal > 0){
+    state.bootWarning = `${jumlahGagal} dari ${semuaHasil.length} data gagal dimuat sepenuhnya — coba refresh halaman kalau ada yang terlihat kosong/tidak update.`;
+  }
 }
 async function muatOverrideSayaSendiri(email){
   try {
@@ -1267,7 +1280,7 @@ const api = {
    ================================================================ */
 const state = { session:null, modules:[], activeModule:null, allModulesMatrix:null, allSubModulesMatrix:null,
   moduleSettingsExpanded:{}, overrideUserEmail:'', overrideUserData:null, myOverrides:null, loading:false, error:'',
-  bootLoading: true, bootError: null, bootErrorType: null, dialogIdleTampil: false,
+  bootLoading: true, bootError: null, bootErrorType: null, bootWarning: null, dialogIdleTampil: false,
   emailLookupLoading: false, emailLookupNotFound: false, emailLookupTried: '',
   emailRegistrasiInfo: null,
   profileError: '', profileSukses: '', profileLoading: false,
@@ -7164,6 +7177,12 @@ function renderShell(){
     ? `<div class="seal" style="overflow:hidden;padding:0;"><img src="${s.logoKantor}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>`
     : `<div class="seal">KP</div>`;
   return `${renderTopbar()}
+  ${state.bootWarning ? `
+  <div id="banner-boot-warning" style="background:#FBE7EA;border-bottom:2px solid var(--danger);padding:9px 18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#7A2530;">
+    <span>&#9888; ${state.bootWarning}</span>
+    <button type="button" onclick="location.reload()" class="primary" style="width:auto;padding:5px 16px;font-size:12px;">Refresh</button>
+    <button type="button" onclick="state.bootWarning=null; render();" style="background:none;border:none;color:#7A2530;cursor:pointer;font-size:16px;padding:0 4px;" title="Tutup">&times;</button>
+  </div>` : ''}
   ${state.session.perluGantiPassword ? `
   <div id="banner-ganti-password" style="background:#FDF3E3;border-bottom:2px solid var(--gold);padding:9px 18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#5A4400;">
     <span>&#9888; Anda login memakai <b>password sementara</b> — segera ganti dengan password pilihan Anda sendiri.</span>
