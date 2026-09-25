@@ -82,14 +82,19 @@
   .demo-row:hover{color:var(--navy);}
 
   /* ---- SHELL ---- */
-  #sidebar{width:250px;background:var(--sidebar-bg, var(--navy));color:#EDEEF2;flex-shrink:0;display:flex;flex-direction:column;padding:20px 14px;transition:width .2s ease, padding .2s ease, background-color 1s ease;overflow:hidden;}
-  #sidebar.collapsed{width:0;padding:0;border:none;}
+  #sidebar{width:250px;background:var(--sidebar-bg, var(--navy));color:#EDEEF2;flex-shrink:0;display:flex;flex-direction:column;padding:20px 14px;transition:width .3s cubic-bezier(.4,0,.2,1), padding .3s ease, background-color 1s ease;overflow:hidden;box-shadow:3px 0 24px rgba(0,0,0,.14);position:relative;z-index:10;}
+  #sidebar.collapsed{width:84px;padding:22px 10px;}
+  #sidebar.collapsed .brand{justify-content:center;padding:0 0 20px;}
+  #sidebar.collapsed .brand-name, #sidebar.collapsed .brand-sub, #sidebar.collapsed .nav-section-title, #sidebar.collapsed .nav-label, #sidebar.collapsed .sidebar-footer, #sidebar.collapsed .sidebar-toggle-label, #sidebar.collapsed nav{display:none;}
+  #sidebar.collapsed .sidebar-toggle-btn{justify-content:center;}
+  #sidebar.collapsed .sidebar-toggle-btn{justify-content:center;}
   .hamburger-btn{width:38px;height:38px;border-radius:8px;background:var(--navy);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+  @media (min-width:769px){ .hamburger-btn{ display:none; } }
   .hamburger-btn:hover{background:var(--navy-2);}
   .content-topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
   .sidebar-backdrop{display:none;}
-  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 20px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:16px;}
-  .brand .seal{width:36px;height:36px;font-size:13px;}
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 22px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:18px;transition:padding .25s ease,justify-content .25s ease;}
+  .brand .seal{width:58px;height:58px;font-size:20px;transition:width .25s ease,height .25s ease;box-shadow:0 4px 16px rgba(184,134,43,.25);}
   .brand-name{font-family:var(--font-display);font-size:15px;font-weight:600;}
   .brand-sub{font-size:10px;color:#9AA4BB;font-family:var(--font-mono);}
   .role-badge{display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:18px;background:rgba(255,255,255,.05);border-radius:8px;border:1px solid rgba(255,255,255,.08);}
@@ -99,13 +104,19 @@
   .nav-section-title{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7D879E;padding:10px 10px 6px;font-weight:600;}
   .sidebar-footer{margin-top:auto;padding:14px 10px 4px;font-size:10.5px;color:#7D879E;border-top:1px solid rgba(255,255,255,.08);text-align:center;white-space:nowrap;}
   nav{flex:1;overflow-y:auto;}
-  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;cursor:pointer;font-size:13.5px;color:#D2D6E0;margin-bottom:2px;}
-  .nav-item:hover{background:rgba(255,255,255,.06);}
-  .nav-item.active{background:var(--gold);color:#2B1E08;font-weight:500;}
-  .nav-dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;}
-  .nav-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.85;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:11px;cursor:pointer;font-size:13.5px;color:#D2D6E0;margin-bottom:3px;position:relative;transition:background-color .2s ease,color .2s ease,transform .2s ease,padding-left .2s ease;}
+  .nav-item:hover{background:rgba(255,255,255,.07);transform:translateX(3px);}
+  .nav-item.active{background:var(--gold);color:#2B1E08;font-weight:500;box-shadow:0 4px 14px rgba(184,134,43,.3);}
+  .nav-label{transition:opacity .15s ease;white-space:nowrap;}
+  .nav-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.85;transition:opacity .18s ease,transform .18s ease;}
+  .nav-item:hover .nav-icon{opacity:1;transform:scale(1.08);}
   .nav-item.active .nav-icon{opacity:1;}
+  .nav-dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;}
   .logout-btn{margin-top:12px;padding:9px;text-align:center;font-size:12.5px;color:#D2D6E0;border:1px solid rgba(255,255,255,.15);border-radius:7px;cursor:pointer;}
+  .sidebar-toggle-btn{display:flex;align-items:center;gap:10px;padding:10px;margin-top:auto;border-radius:8px;cursor:pointer;color:#9AA4BB;font-size:12.5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:background-color .18s ease,color .18s ease;}
+  .sidebar-toggle-btn:hover{background:rgba(255,255,255,.09);color:#EDEEF2;}
+  .sidebar-toggle-btn svg{transition:transform .25s ease;}
+  #sidebar.collapsed .sidebar-toggle-btn svg{transform:rotate(180deg);}
   .logout-btn:hover{background:rgba(255,255,255,.06);}
 
   main{flex:1;padding:32px 40px;max-width:1080px;transition:max-width .2s ease;}
@@ -7332,7 +7343,7 @@ function renderMobileFooter(){
 }
 
 function renderShell(){
-  const navItems = state.modules.map(m=>`<div class="nav-item ${m.id===state.activeModule?'active':''}" onclick="setModule('${m.id}')"><span class="nav-icon">${MODULE_ICONS[m.id]||''}</span>${m.name}</div>`).join('');
+  const navItems = state.modules.map(m=>`<div class="nav-item ${m.id===state.activeModule?'active':''}" onclick="setModule('${m.id}')" title="${m.name}"><span class="nav-icon">${MODULE_ICONS[m.id]||''}</span><span class="nav-label">${m.name}</span></div>`).join('');
   const sidebarClass = state.sidebarOpen ? 'mobile-open' : 'collapsed';
   const backdropHtml = state.sidebarOpen ? `<div class="sidebar-backdrop" onclick="toggleSidebar()"></div>` : '';
   const s = state.systemSettings;
@@ -7363,6 +7374,10 @@ function renderShell(){
       <div class="nav-section-title">Menu</div>
       <nav>${navItems || '<div style="padding:10px;font-size:12px;color:#9AA4BB;">Tidak ada modul aktif</div>'}</nav>
       <div class="sidebar-footer" onclick="state.changelogOpen=true; render();" style="cursor:pointer;">${getUpdateTerakhir() ? `Versi ${getUpdateTerakhir()}<br>` : ''}&copy; 2026 Jundezain</div>
+      <div class="sidebar-toggle-btn" onclick="toggleSidebar()" title="${state.sidebarOpen?'Ciutkan menu':'Perluas menu'}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <span class="sidebar-toggle-label">Ciutkan Menu</span>
+      </div>
       ${state.changelogOpen ? renderChangelogModal() : ''}
     </aside>
     <main>
