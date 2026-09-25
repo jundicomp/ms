@@ -937,6 +937,9 @@ async function muatSemuaDataAplikasi(email){
     state.bootWarning = 'Gagal memuat data awal — coba refresh halaman.';
     return;
   }
+  if (data.gagal && data.gagal.length){
+    state.bootWarning = `${data.gagal.length} bagian data gagal dimuat (${data.gagal.map(g=>g.bagian).join(', ')}) — bagian lain tetap normal. Coba refresh kalau ada yang terlihat kosong.`;
+  }
 
   MOCK_USERS.length = 0;
   (data.users||[]).forEach(u => MOCK_USERS.push({
