@@ -148,6 +148,12 @@
   @keyframes spinMini{to{transform:rotate(360deg);}}
   .premium-check-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 10px;border-bottom:1px solid var(--border);margin-bottom:10px;cursor:pointer;}
   .premium-check-head .cnt{font-size:11px;color:var(--ink-soft);font-weight:600;}
+  .pulse-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .pulse-dot.ok{background:var(--sage);box-shadow:0 0 0 rgba(47,163,107,.5);animation:pulseOk 1.8s infinite;}
+  .pulse-dot.bad{background:var(--danger);box-shadow:0 0 0 rgba(192,57,43,.5);animation:pulseBad 1.8s infinite;}
+  .pulse-dot.unknown{background:var(--border);}
+  @keyframes pulseOk{0%{box-shadow:0 0 0 0 rgba(47,163,107,.55);}70%{box-shadow:0 0 0 7px rgba(47,163,107,0);}100%{box-shadow:0 0 0 0 rgba(47,163,107,0);}}
+  @keyframes pulseBad{0%{box-shadow:0 0 0 0 rgba(192,57,43,.55);}70%{box-shadow:0 0 0 7px rgba(192,57,43,0);}100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}}
   .premium-check{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;margin-bottom:8px;transition:background-color .15s ease,border-color .15s ease;background:white;}
   .premium-check input{position:absolute;opacity:0;width:0;height:0;}
   .premium-check .pc-box{width:19px;height:19px;border-radius:6px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background-color .15s ease,border-color .15s ease;}
@@ -441,6 +447,7 @@ const SUB_MODULE_DEFS = [
   { id:'admin_sistem', parentId:'administrasi', name:'Tab: Pengaturan / Sistem', roles:['superadmin'] },
   { id:'admin_log', parentId:'administrasi', name:'Tab: Log Aktivitas', roles:['superadmin'] },
   { id:'admin_telegram', parentId:'administrasi', name:'Tab: Notifikasi Telegram', roles:['superadmin'] },
+  { id:'admin_koneksi', parentId:'administrasi', name:'Tab: Koneksi Sheet', roles:['superadmin'] },
   { id:'keuangan_invoice', parentId:'keuangan', name:'Tab: Invoice', roles:['superadmin','owner','direktur','admin','finance'] },
   { id:'keuangan_pajak', parentId:'keuangan', name:'Tab: Laporan Pajak', roles:['superadmin','owner','direktur','admin','konsultan','klien'] },
 ];
@@ -929,6 +936,34 @@ async function muatUlangLogAktivitas(){
 
 // Muat SEMUA data modul ke memori — dipanggil setelah login sungguhan
 // MAUPUN saat memulihkan sesi dari sessionStorage (refresh halaman).
+// Label ringkas per bagian data — dipakai fallback "semua merah" di
+// cekKesehatanSheetBerkala() kalau server sama sekali tidak terjangkau.
+const DAFTAR_ITEM_MUAT_DATA = [
+  { key:'users', label:'Data User' }, { key:'clients', label:'Data Klien' },
+  { key:'jobs', label:'Data Pekerjaan' }, { key:'reminders', label:'Data Reminder' },
+  { key:'meetings', label:'Data Notulensi Rapat' }, { key:'layananSelesaiDaftar', label:'Status Layanan Selesai' },
+  { key:'invoices', label:'Data Invoice' }, { key:'documents', label:'Data Dokumen' },
+  { key:'notes', label:'Catatan Kalender' }, { key:'messages', label:'Pesan' },
+  { key:'logs', label:'Log Aktivitas' }, { key:'overrides', label:'Hak Akses Khusus' },
+  { key:'bidangUsahaDaftar', label:'Daftar Bidang Usaha' }, { key:'bentukBadanDaftar', label:'Daftar Bentuk Badan' },
+  { key:'telegramSettings', label:'Pengaturan Telegram' },
+];
+// SEMUA 21 tab Sheet yang benar-benar dipakai aplikasi ini — dipakai khusus
+// di tab "Koneksi" supaya cakupannya sesuai jumlah tab Sheet yang sesungguhnya
+// (daftar di atas cuma 15 item yang dimuat pas login, bukan semua tab).
+const DAFTAR_SEMUA_TAB_SHEET = [
+  { key:'users', label:'Users' }, { key:'clients', label:'Clients' },
+  { key:'jobs', label:'Jobs' }, { key:'reminders', label:'Reminders' },
+  { key:'invoices', label:'Invoices' }, { key:'invoiceItems', label:'InvoiceItems' },
+  { key:'documents', label:'Documents' }, { key:'notes', label:'CalendarNotes' },
+  { key:'messages', label:'Messages' }, { key:'logs', label:'ActivityLog' },
+  { key:'systemSettings', label:'SystemSettings' }, { key:'moduleAccess', label:'ModuleAccess' },
+  { key:'subModuleAccess', label:'SubModuleAccess' }, { key:'overrides', label:'UserModuleOverride' },
+  { key:'bidangUsahaDaftar', label:'BidangUsahaList' }, { key:'bentukBadanDaftar', label:'BentukBadanList' },
+  { key:'meetings', label:'MeetingMinutes' }, { key:'meetingClients', label:'MeetingMinutesClients' },
+  { key:'meetingActionItems', label:'MeetingActionItems' }, { key:'telegramSettings', label:'TelegramNotifSettings' },
+  { key:'layananSelesaiDaftar', label:'LayananSelesaiLog' },
+];
 const BOOT_CHECKLIST_DEFS = [
   { key:'users', label:'Data User', retryFn:(email)=>muatUlangDaftarUser(email) },
   { key:'clients', label:'Data Klien', retryFn:()=>muatUlangDaftarKlien() },
@@ -1085,6 +1120,11 @@ const api = {
     try {
       return await callBackendUtama('getBootBundle', { email });
     } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
+  },
+  async cekKesehatanSheet(){
+    try {
+      return await callBackendUtama('cekKesehatanSheet');
+    } catch (err) { return { success:false }; }
   },
 
   async getAllModules(){
@@ -1259,6 +1299,7 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   moduleSettingsExpanded:{}, overrideUserEmail:'', overrideUserData:null, myOverrides:null, loading:false, error:'',
   bootLoading: true, bootError: null, bootErrorType: null, bootWarning: null, sessionInvalid: false, dialogIdleTampil: false,
   dataLoadChecklist: { open:false, items:[], adaGagal:false },
+  kesehatanSheet: {},
   bootChecklistOpen: false, bootChecklistItems: [], bootChecklistSelesai: false,
   emailLookupLoading: false, emailLookupNotFound: false, emailLookupTried: '',
   emailRegistrasiInfo: null,
@@ -1404,6 +1445,7 @@ function selesaikanLoginSukses(result){
   mulaiTimerTopbar();
   tampilkanKutipanBaru();
   mulaiPengawasanSesiTunggal();
+  mulaiPengawasanKesehatanSheet();
   state.loading = false; render();
 }
 async function lanjutkanLoginPaksa(){
@@ -1513,6 +1555,60 @@ document.addEventListener('animationend', function(ev){
 // disimpan dulu sebelum benar-benar keluar.
 // ============================================================
 let _sesiTunggalInterval = null;
+// ============================================================
+// KESEHATAN KONEKSI SHEET — cek berkala (bukan cuma sekali pas login) supaya
+// indikator pulse di tab "Koneksi" benar-benar hidup, bukan cuma foto sesaat
+// dari awal login. Pakai endpoint RINGAN (cuma cek tab ada/tidak), jadi aman
+// dipanggil sesering ini tanpa boros.
+// ============================================================
+let _kesehatanSheetInterval = null;
+async function cekKesehatanSheetBerkala(){
+  const hasil = await api.cekKesehatanSheet();
+  if (hasil.success) state.kesehatanSheet = hasil.status;
+  else { // gagal total (server tidak terjangkau) -> tandai semua merah
+    const semuaMerah = {};
+    DAFTAR_SEMUA_TAB_SHEET.forEach(d => { semuaMerah[d.key] = false; });
+    state.kesehatanSheet = semuaMerah;
+  }
+  render();
+}
+function mulaiPengawasanKesehatanSheet(){
+  if (_kesehatanSheetInterval) clearInterval(_kesehatanSheetInterval);
+  cekKesehatanSheetBerkala(); // langsung cek sekali begitu masuk, tidak perlu tunggu interval pertama
+  _kesehatanSheetInterval = setInterval(cekKesehatanSheetBerkala, 90 * 1000); // tiap 90 detik — cukup sering utk kelihatan "hidup", tidak berlebihan
+}
+function kesehatanOverallClass(){
+  const nilai = Object.values(state.kesehatanSheet);
+  if (!nilai.length) return 'unknown';
+  return nilai.every(v => v === true) ? 'ok' : 'bad';
+}
+function renderKoneksiSheet(){
+  const nilai = Object.values(state.kesehatanSheet);
+  const semuaSehat = nilai.length && nilai.every(v => v === true);
+  const belumDicek = !nilai.length;
+  return `
+    <div class="section-title" style="font-size:14px;margin-bottom:4px;">Koneksi ke Google Sheet</div>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:16px;">Dicek otomatis tiap 90 detik — titik hijau berdenyut artinya tab Sheet itu terbaca normal, merah artinya bermasalah (biasanya tab belum dibuat).</p>
+
+    <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span class="pulse-dot ${belumDicek?'unknown':(semuaSehat?'ok':'bad')}" style="width:12px;height:12px;"></span>
+      <span style="font-weight:700;font-size:13px;color:${belumDicek?'var(--ink-soft)':(semuaSehat?'var(--sage)':'var(--danger)')};">
+        ${belumDicek ? 'Memeriksa...' : (semuaSehat ? 'Semua koneksi sehat' : 'Ada koneksi bermasalah')}
+      </span>
+    </div>
+
+    <div class="card">
+      ${DAFTAR_SEMUA_TAB_SHEET.map(d => {
+        const status = state.kesehatanSheet[d.key];
+        const cls = status === undefined ? 'unknown' : (status ? 'ok' : 'bad');
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--bg);font-size:12.5px;">
+          <span class="pulse-dot ${cls}"></span>
+          <span style="flex:1;">${d.label}</span>
+          <span style="font-size:10.5px;color:${cls==='ok'?'var(--sage)':(cls==='bad'?'var(--danger)':'var(--ink-soft)')};font-weight:600;">${cls==='ok'?'Terhubung':(cls==='bad'?'Bermasalah':'Memeriksa...')}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
 function mulaiPengawasanSesiTunggal(){
   if (_sesiTunggalInterval) clearInterval(_sesiTunggalInterval);
   _sesiTunggalInterval = setInterval(async () => {
@@ -6029,6 +6125,7 @@ function renderAdministrasiModule(){
     ${bisaAksesSubModul('admin_user') ? `<button class="tab-btn ${state.administrasiTab==='user'?'active':''}" onclick="setAdministrasiTab('user')">User</button>` : ''}
     ${bisaAksesSubModul('admin_sistem') ? `<button class="tab-btn ${state.administrasiTab==='sistem'?'active':''}" onclick="setAdministrasiTab('sistem')">Pengaturan</button>` : ''}
     ${bisaAksesSubModul('admin_log') ? `<button class="tab-btn ${state.administrasiTab==='log'?'active':''}" onclick="setAdministrasiTab('log')">Sistem</button>` : ''}
+    ${bisaAksesSubModul('admin_koneksi') ? `<button class="tab-btn ${state.administrasiTab==='koneksi'?'active':''}" onclick="setAdministrasiTab('koneksi')" style="display:inline-flex;align-items:center;gap:6px;">Koneksi <span class="pulse-dot ${kesehatanOverallClass()}"></span></button>` : ''}
     ${bisaAksesSubModul('admin_telegram') ? `<button class="tab-btn ${state.administrasiTab==='telegram'?'active':''}" onclick="setAdministrasiTab('telegram')">Notifikasi Telegram</button>` : ''}
   </div>`;
   let body;
@@ -6036,6 +6133,7 @@ function renderAdministrasiModule(){
   else if (state.administrasiTab === 'user') body = renderUserManagement(true);
   else if (state.administrasiTab === 'sistem') body = renderSystemSettings(true);
   else if (state.administrasiTab === 'telegram') body = renderPengaturanTelegram();
+  else if (state.administrasiTab === 'koneksi') body = renderKoneksiSheet();
   else body = `<div class="section-title" style="font-size:15px;margin-bottom:12px;">Log Aktivitas</div>`
     + renderActivityLog(true)
     + `<div class="section-title" style="font-size:15px;margin:28px 0 12px;">Rilis Update</div>`
@@ -7513,6 +7611,7 @@ async function mulaiAplikasi(){
       mulaiTimerTopbar();
       tampilkanKutipanBaru();
       mulaiPengawasanSesiTunggal();
+      mulaiPengawasanKesehatanSheet();
     }
   } catch (err) { /* kalau gagal pulihkan sesi, biarkan lanjut ke alur login normal */ }
 
