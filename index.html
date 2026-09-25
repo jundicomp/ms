@@ -928,42 +928,61 @@ async function muatUlangLogAktivitas(){
 // Muat SEMUA data modul ke memori — dipanggil setelah login sungguhan
 // MAUPUN saat memulihkan sesi dari sessionStorage (refresh halaman).
 async function muatSemuaDataAplikasi(email){
-  // PARALEL per GELOMBANG (bukan 15 sekaligus, bukan juga satu-satu berurutan).
-  // 15 permintaan bersamaan ke 1 Apps Script Web App yang sama itu SERING
-  // membuat sebagian permintaan antre lama atau gagal diam-diam — gejalanya
-  // persis "kadang muncul data lama/kosong" dan "lemot", padahal sebenarnya
-  // itu permintaan yang gagal dan hasilnya cuma dilewati begitu saja. Dipecah
-  // jadi 3 gelombang kecil (~5 tiap gelombang) supaya bebannya lebih ringan,
-  // sambil totalnya tetap jauh lebih cepat dibanding kalau 15-15 berurutan.
-  const gelombang1 = await Promise.allSettled([
-    muatUlangDaftarUser(email),
-    muatUlangDaftarKlien(),
-    muatUlangDaftarPekerjaan(),
-    muatUlangDaftarReminder(),
-    muatUlangDaftarNotulensi(),
-  ]);
-  const gelombang2 = await Promise.allSettled([
-    muatUlangLayananSelesai(),
-    muatUlangDaftarInvoice(),
-    muatUlangDaftarDokumen(),
-    muatUlangCatatanKalender(),
-    muatUlangPesan(),
-  ]);
-  const gelombang3 = await Promise.allSettled([
-    muatUlangLogAktivitas(),
-    muatOverrideSayaSendiri(email),
-    api.getBidangUsahaList(),
-    api.getBentukBadanList(),
-    api.getTelegramNotifSettings(),
-  ]);
+  // SATU permintaan gabungan (bukan 15 terpisah, bukan juga 3 gelombang
+  // seperti sebelumnya) — backend sudah menggabungkan semuanya jadi 1
+  // eksekusi lewat getBootBundle. Ini jauh lebih cepat karena cuma kena
+  // 1x biaya "buka eksekusi Apps Script", bukan 15x.
+  const data = await api.getBootBundle(email);
+  if (!data.success){
+    state.bootWarning = 'Gagal memuat data awal — coba refresh halaman.';
+    return;
+  }
 
-  // Kalau ADA yang beneran gagal (bukan cuma balik false/kosong tapi error
-  // sungguhan kayak network timeout), kasih tahu jelas — daripada user bingung
-  // lihat data lama/kosong tanpa tahu sebabnya.
-  const semuaHasil = [...gelombang1, ...gelombang2, ...gelombang3];
-  const jumlahGagal = semuaHasil.filter(h => h.status === 'rejected').length;
-  if (jumlahGagal > 0){
-    state.bootWarning = `${jumlahGagal} dari ${semuaHasil.length} data gagal dimuat sepenuhnya — coba refresh halaman kalau ada yang terlihat kosong/tidak update.`;
+  MOCK_USERS.length = 0;
+  (data.users||[]).forEach(u => MOCK_USERS.push({
+    id: u.id, nama: u.nama, email: u.email, password: '', role: u.role, status: u.status,
+    foto: u.fotoURL || null, whatsapp: u.whatsapp || '',
+    lastActiveMinutes: u.email === email ? 0 : hitungMenitSejakAktif(u.terakhirAktif),
+  }));
+
+  MOCK_CLIENTS.length = 0;
+  (data.clients||[]).forEach(c => MOCK_CLIENTS.push({ ...c, foto: c.fotoURL || null, jenisLayanan: migrasikanJenisLayananKlien(c.jenisLayanan) }));
+
+  MOCK_JOBS.length = 0;
+  (data.jobs||[]).forEach(j => MOCK_JOBS.push(j));
+
+  MOCK_REMINDERS.length = 0;
+  (data.reminders||[]).forEach(r => MOCK_REMINDERS.push(r));
+
+  MOCK_MEETING_MINUTES.length = 0;
+  (data.meetings||[]).forEach(m => MOCK_MEETING_MINUTES.push(m));
+
+  MOCK_LAYANAN_SELESAI.clear();
+  (data.layananSelesaiDaftar||[]).forEach(r => MOCK_LAYANAN_SELESAI.add(r.clientId + '::' + r.layanan));
+
+  MOCK_INVOICES.length = 0;
+  (data.invoices||[]).forEach(inv => MOCK_INVOICES.push({ ...inv, kenaPPh23: inv.kenaPPh23 === 'TRUE' || inv.kenaPPh23 === true }));
+
+  MOCK_DOCUMENTS.length = 0;
+  (data.documents||[]).forEach(d => MOCK_DOCUMENTS.push({ ...d, fileData: d.fileURL || null }));
+
+  MOCK_CALENDAR_NOTES.length = 0;
+  (data.notes||[]).forEach(n => MOCK_CALENDAR_NOTES.push(n));
+
+  MOCK_MESSAGES.length = 0;
+  (data.messages||[]).forEach(m => MOCK_MESSAGES.push(m));
+
+  MOCK_ACTIVITY_LOG.length = 0;
+  (data.logs||[]).forEach(l => MOCK_ACTIVITY_LOG.push(l));
+
+  state.myOverrides = data.overrides;
+
+  if (data.bidangUsahaDaftar && data.bidangUsahaDaftar.length) BIDANG_USAHA_OPTIONS = [...new Set([...BIDANG_USAHA_OPTIONS, ...data.bidangUsahaDaftar])];
+  if (data.bentukBadanDaftar && data.bentukBadanDaftar.length) BENTUK_BADAN_OPTIONS = [...new Set([...BENTUK_BADAN_OPTIONS, ...data.bentukBadanDaftar])];
+
+  if (data.telegramSettings){
+    telegramNotifConfig = {};
+    data.telegramSettings.forEach(s => { telegramNotifConfig[s.aksiId] = { aktif:s.aktif, kirimGrup:s.kirimGrup, kirimPribadi:s.kirimPribadi }; });
   }
 }
 async function muatOverrideSayaSendiri(email){
@@ -1022,6 +1041,11 @@ const api = {
       const data = await callBackendUtama('verifySession', { email, sessionToken });
       return data.success ? data.valid : true; // kalau gagal cek (offline dsb), anggap valid saja — jangan logout paksa gara-gara koneksi sesaat
     } catch (err) { return true; }
+  },
+  async getBootBundle(email){
+    try {
+      return await callBackendUtama('getBootBundle', { email });
+    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
   },
 
   async getAllModules(){
