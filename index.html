@@ -2761,8 +2761,9 @@ function cancelCompleteJob(){ state.completingJobId = null; render(); }
 async function submitCompleteJob(id){
   const catatan = getFieldVal('mj-catatan-'+id);
   if (!catatan){ alert('Isi catatan pengerjaan terlebih dahulu'); return; }
+  const tanggalSelesai = getFieldVal('mj-tanggal-'+id);
+  if (!tanggalSelesai){ alert('Isi tanggal pekerjaan selesai dikerjakan terlebih dahulu'); return; }
   const job = MOCK_JOBS.find(j=>j.id===id);
-  const tanggalSelesai = new Date().toISOString().slice(0,10);
   try {
     const resp = await callBackendUtama('updateJob', { id, updates: { catatanPengerjaan: catatan, status: 'Menunggu Persetujuan', tanggalSelesai } });
     if (!resp.success) throw new Error(resp.message || 'Gagal menyimpan.');
@@ -2784,6 +2785,8 @@ function buildAssigneeActionHtml(j){
     if (state.completingJobId === j.id){
       actionHtml = `
         <div style="margin-top:10px;">
+          <label>Tanggal Pekerjaan Selesai Dikerjakan</label>
+          <input type="date" id="mj-tanggal-${j.id}" value="${new Date().toISOString().slice(0,10)}" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:10px;">
           <label>Catatan Pengerjaan (jelaskan apa yang sudah dilakukan)</label>
           <textarea id="mj-catatan-${j.id}" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:10px;font-family:var(--font-body);"></textarea>
           <div style="display:flex;gap:8px;">
@@ -2797,7 +2800,11 @@ function buildAssigneeActionHtml(j){
   } else if (j.status === 'Menunggu Persetujuan'){
     actionHtml = `<span class="badge due">Menunggu persetujuan atasan</span>`;
   } else if (j.status === 'Disetujui'){
-    actionHtml = `<div><span class="badge ok">Disetujui</span>${j.catatanPersetujuan ? `<p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;">Catatan atasan: "${j.catatanPersetujuan}"</p>` : ''}</div>`;
+    actionHtml = `<div><span class="badge ok">Disetujui</span>
+      ${j.tanggalSelesai ? `<p style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;">Selesai dikerjakan: <b>${formatDDMMYY(j.tanggalSelesai)}</b></p>` : ''}
+      ${j.catatanPengerjaan ? `<p style="font-size:12px;color:var(--ink-soft);margin:4px 0 0;">Catatan pengerjaan: "${j.catatanPengerjaan}"</p>` : ''}
+      ${j.catatanPersetujuan ? `<p style="font-size:12px;color:var(--ink-soft);margin:4px 0 0;">Catatan atasan: "${j.catatanPersetujuan}"</p>` : ''}
+    </div>`;
   } else if (j.status === 'Ditolak'){
     actionHtml = `<div><span class="badge due">Ditolak — perlu direvisi</span>${j.catatanPersetujuan ? `<p style="font-size:12px;color:var(--danger);margin:8px 0 0;">Catatan atasan: "${j.catatanPersetujuan}"</p>` : ''}
       <div style="margin-top:8px;"><button class="primary" style="width:auto;padding:7px 14px;" onclick="startJob('${j.id}')">Kerjakan Ulang</button></div></div>`;
@@ -2896,7 +2903,8 @@ function renderJobApproval(){
     return `<tr>
       <td>${j.judul}</td><td>${user?user.nama:'-'}</td>
       <td><span class="badge ${JOB_STATUS_BADGE[j.status]}">${j.status}</span></td>
-      <td style="font-size:12px;">${j.catatanPersetujuan||'-'}</td>
+      <td style="font-size:12px;">${j.tanggalSelesai ? formatDDMMYY(j.tanggalSelesai) : '-'}</td>
+      <td style="font-size:12px;">${j.catatanPengerjaan ? `Pengerjaan: "${j.catatanPengerjaan}"<br>` : ''}${j.catatanPersetujuan ? `Atasan: "${j.catatanPersetujuan}"` : (j.catatanPengerjaan ? '' : '-')}</td>
     </tr>`;
   }).join('');
 
@@ -2905,7 +2913,7 @@ function renderJobApproval(){
     ${pendingHtml}
     <div class="section-title" style="font-size:14px;margin-top:20px;">Riwayat Persetujuan</div>
     <div class="card"><table>
-      <tr><th>Pekerjaan</th><th>Dikerjakan Oleh</th><th>Status</th><th>Catatan</th></tr>
+      <tr><th>Pekerjaan</th><th>Dikerjakan Oleh</th><th>Status</th><th>Tanggal Selesai</th><th>Catatan</th></tr>
       ${historyRows || '<tr><td colspan="4" style="color:var(--ink-soft);">Belum ada riwayat</td></tr>'}
     </table></div>`;
 }
@@ -3287,6 +3295,7 @@ function renderAllJobs(){
             Prioritas: <b>${j.prioritas}</b> &nbsp;·&nbsp; Mulai: <b>${j.tanggalMulai||'-'}</b> &nbsp;·&nbsp;
             Target Selesai: <b>${j.tenggatWaktu||'-'}</b>${totalHari!==null?` (${totalHari} hari)`:''}
           </div>
+          ${j.tanggalSelesai ? `<div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">Selesai dikerjakan: <b>${formatDDMMYY(j.tanggalSelesai)}</b></div>` : ''}
           ${j.catatanPengerjaan ? `<div style="font-size:12px;color:var(--ink-soft);margin-top:6px;">Catatan pengerjaan: "${j.catatanPengerjaan}"</div>` : ''}
           ${j.catatanPersetujuan ? `<div style="font-size:12px;color:${j.status==='Ditolak'?'var(--danger)':'var(--sage)'};margin-top:4px;">Catatan persetujuan: "${j.catatanPersetujuan}"</div>` : ''}
         </div>
