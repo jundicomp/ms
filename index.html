@@ -144,6 +144,8 @@
   .matrix td:first-child{text-align:left;font-weight:500;}
   .mod-desc{font-size:10.5px;color:var(--ink-soft);font-weight:400;display:block;}
   .cell-clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;}
+  .spin-mini{display:inline-block;animation:spinMini 1s linear infinite;}
+  @keyframes spinMini{to{transform:rotate(360deg);}}
   .premium-check-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 10px;border-bottom:1px solid var(--border);margin-bottom:10px;cursor:pointer;}
   .premium-check-head .cnt{font-size:11px;color:var(--ink-soft);font-weight:600;}
   .premium-check{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;margin-bottom:8px;transition:background-color .15s ease,border-color .15s ease;background:white;}
@@ -927,19 +929,44 @@ async function muatUlangLogAktivitas(){
 
 // Muat SEMUA data modul ke memori — dipanggil setelah login sungguhan
 // MAUPUN saat memulihkan sesi dari sessionStorage (refresh halaman).
+const BOOT_CHECKLIST_DEFS = [
+  { key:'users', label:'Data User', retryFn:(email)=>muatUlangDaftarUser(email) },
+  { key:'clients', label:'Data Klien', retryFn:()=>muatUlangDaftarKlien() },
+  { key:'jobs', label:'Data Pekerjaan', retryFn:()=>muatUlangDaftarPekerjaan() },
+  { key:'reminders', label:'Data Reminder', retryFn:()=>muatUlangDaftarReminder() },
+  { key:'meetings', label:'Data Notulensi Rapat', retryFn:()=>muatUlangDaftarNotulensi() },
+  { key:'layananSelesaiDaftar', label:'Status Layanan Selesai', retryFn:()=>muatUlangLayananSelesai() },
+  { key:'invoices', label:'Data Invoice', retryFn:()=>muatUlangDaftarInvoice() },
+  { key:'documents', label:'Data Dokumen', retryFn:()=>muatUlangDaftarDokumen() },
+  { key:'notes', label:'Catatan Kalender', retryFn:()=>muatUlangCatatanKalender() },
+  { key:'messages', label:'Pesan', retryFn:()=>muatUlangPesan() },
+  { key:'logs', label:'Log Aktivitas', retryFn:()=>muatUlangLogAktivitas() },
+  { key:'overrides', label:'Hak Akses Saya', retryFn:(email)=>muatOverrideSayaSendiri(email) },
+  { key:'bidangUsahaDaftar', label:'Daftar Bidang Usaha', retryFn:()=>api.getBidangUsahaList() },
+  { key:'bentukBadanDaftar', label:'Daftar Bentuk Badan', retryFn:()=>api.getBentukBadanList() },
+  { key:'telegramSettings', label:'Pengaturan Telegram', retryFn:()=>api.getTelegramNotifSettings() },
+];
+
 async function muatSemuaDataAplikasi(email){
-  // SATU permintaan gabungan (bukan 15 terpisah, bukan juga 3 gelombang
-  // seperti sebelumnya) — backend sudah menggabungkan semuanya jadi 1
-  // eksekusi lewat getBootBundle. Ini jauh lebih cepat karena cuma kena
-  // 1x biaya "buka eksekusi Apps Script", bukan 15x.
+  // Checklist visual — setiap bagian ditampilkan satu per satu sambil
+  // dimuat, dicentang begitu berhasil. Kalau ada yang gagal (biasanya
+  // karena 1 tab Sheet belum lengkap di sisi buyer), otomatis dicoba ulang
+  // SENDIRI (bukan reload seluruh halaman) — jadi kalau cuma masalah
+  // sesaat, biasanya langsung beres tanpa perlu user apa-apa.
+  state.bootChecklistOpen = true;
+  state.bootChecklistSelesai = false;
+  state.bootChecklistItems = BOOT_CHECKLIST_DEFS.map(d => ({ key:d.key, label:d.label, status:'pending' }));
+  render();
+
   const data = await api.getBootBundle(email);
   if (!data.success){
-    state.bootWarning = 'Gagal memuat data awal — coba refresh halaman.';
+    state.bootChecklistItems.forEach(it => it.status = 'failed');
+    state.bootChecklistSelesai = true;
+    render();
     return;
   }
-  if (data.gagal && data.gagal.length){
-    state.bootWarning = `${data.gagal.length} bagian data gagal dimuat (${data.gagal.map(g=>g.bagian).join(', ')}) — bagian lain tetap normal. Coba refresh kalau ada yang terlihat kosong.`;
-  }
+
+  const gagalSet = new Set((data.gagal||[]).map(g=>g.bagian));
 
   MOCK_USERS.length = 0;
   (data.users||[]).forEach(u => MOCK_USERS.push({
@@ -947,46 +974,55 @@ async function muatSemuaDataAplikasi(email){
     foto: u.fotoURL || null, whatsapp: u.whatsapp || '',
     lastActiveMinutes: u.email === email ? 0 : hitungMenitSejakAktif(u.terakhirAktif),
   }));
-
   MOCK_CLIENTS.length = 0;
   (data.clients||[]).forEach(c => MOCK_CLIENTS.push({ ...c, foto: c.fotoURL || null, jenisLayanan: migrasikanJenisLayananKlien(c.jenisLayanan) }));
-
   MOCK_JOBS.length = 0;
   (data.jobs||[]).forEach(j => MOCK_JOBS.push(j));
-
   MOCK_REMINDERS.length = 0;
   (data.reminders||[]).forEach(r => MOCK_REMINDERS.push(r));
-
   MOCK_MEETING_MINUTES.length = 0;
   (data.meetings||[]).forEach(m => MOCK_MEETING_MINUTES.push(m));
-
   MOCK_LAYANAN_SELESAI.clear();
   (data.layananSelesaiDaftar||[]).forEach(r => MOCK_LAYANAN_SELESAI.add(r.clientId + '::' + r.layanan));
-
   MOCK_INVOICES.length = 0;
   (data.invoices||[]).forEach(inv => MOCK_INVOICES.push({ ...inv, kenaPPh23: inv.kenaPPh23 === 'TRUE' || inv.kenaPPh23 === true }));
-
   MOCK_DOCUMENTS.length = 0;
   (data.documents||[]).forEach(d => MOCK_DOCUMENTS.push({ ...d, fileData: d.fileURL || null }));
-
   MOCK_CALENDAR_NOTES.length = 0;
   (data.notes||[]).forEach(n => MOCK_CALENDAR_NOTES.push(n));
-
   MOCK_MESSAGES.length = 0;
   (data.messages||[]).forEach(m => MOCK_MESSAGES.push(m));
-
   MOCK_ACTIVITY_LOG.length = 0;
   (data.logs||[]).forEach(l => MOCK_ACTIVITY_LOG.push(l));
-
   state.myOverrides = data.overrides;
-
   if (data.bidangUsahaDaftar && data.bidangUsahaDaftar.length) BIDANG_USAHA_OPTIONS = [...new Set([...BIDANG_USAHA_OPTIONS, ...data.bidangUsahaDaftar])];
   if (data.bentukBadanDaftar && data.bentukBadanDaftar.length) BENTUK_BADAN_OPTIONS = [...new Set([...BENTUK_BADAN_OPTIONS, ...data.bentukBadanDaftar])];
-
   if (data.telegramSettings){
     telegramNotifConfig = {};
     data.telegramSettings.forEach(s => { telegramNotifConfig[s.aksiId] = { aktif:s.aktif, kirimGrup:s.kirimGrup, kirimPribadi:s.kirimPribadi }; });
   }
+
+  // Centang satu-satu (sedikit jeda tiap centang, murni biar kelihatan jelas
+  // prosesnya — bukan cuma langsung semua tercentang serentak).
+  for (const item of state.bootChecklistItems){
+    if (gagalSet.has(item.key)){
+      item.status = 'retry'; render();
+      const def = BOOT_CHECKLIST_DEFS.find(d=>d.key===item.key);
+      let berhasilRetry = false;
+      try { const hasilRetry = await def.retryFn(email); berhasilRetry = !!hasilRetry; } catch(e){ berhasilRetry = false; }
+      item.status = berhasilRetry ? 'ok' : 'failed';
+    } else {
+      item.status = 'ok';
+    }
+    render();
+    await new Promise(r => setTimeout(r, 90));
+  }
+  state.bootChecklistSelesai = true;
+  render();
+}
+function tutupBootChecklist(){
+  state.bootChecklistOpen = false;
+  render();
 }
 async function muatOverrideSayaSendiri(email){
   try {
@@ -1201,21 +1237,6 @@ const api = {
     } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
   },
 
-  async getTelegramActivitySettings(){
-    try {
-      const data = await callBackendUtama('getTelegramActivitySettings');
-      if (!data.success) return { success:false, message: data.message };
-      const map = {};
-      data.settings.forEach(s => { map[s.activityKey] = { enabled:s.enabled, kirimGrup:s.kirimGrup, kirimPribadi:s.kirimPribadi }; });
-      return { success:true, map };
-    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
-  },
-  async toggleTelegramActivitySetting(activityKey, field){
-    try {
-      return await callBackendUtama('toggleTelegramActivitySetting', { activityKey, field });
-    } catch (err) { return { success:false, message: 'Gagal terhubung ke server: ' + err.message }; }
-  },
-
   async addBentukBadan(nama){
     try {
       const data = await callBackendUtama('addBentukBadan', { nama });
@@ -1237,6 +1258,8 @@ const api = {
 const state = { session:null, modules:[], activeModule:null, allModulesMatrix:null, allSubModulesMatrix:null,
   moduleSettingsExpanded:{}, overrideUserEmail:'', overrideUserData:null, myOverrides:null, loading:false, error:'',
   bootLoading: true, bootError: null, bootErrorType: null, bootWarning: null, sessionInvalid: false, dialogIdleTampil: false,
+  dataLoadChecklist: { open:false, items:[], adaGagal:false },
+  bootChecklistOpen: false, bootChecklistItems: [], bootChecklistSelesai: false,
   emailLookupLoading: false, emailLookupNotFound: false, emailLookupTried: '',
   emailRegistrasiInfo: null,
   profileError: '', profileSukses: '', profileLoading: false,
@@ -2404,6 +2427,31 @@ function bukaDetailIsiReminder(reminderId){
   render();
 }
 function tutupIsiReminderModal(){ state.isiReminderModal.open = false; render(); }
+function renderBootChecklistModal(){
+  const items = state.bootChecklistItems;
+  const iconFor = (status) => {
+    if (status === 'ok') return `<span style="color:var(--sage);font-weight:700;">&#10003;</span>`;
+    if (status === 'retry') return `<span style="color:var(--gold);" class="spin-mini">&#8635;</span>`;
+    if (status === 'failed') return `<span style="color:var(--danger);font-weight:700;">&#10007;</span>`;
+    return `<span style="color:var(--border);">&#9675;</span>`;
+  };
+  const adaGagal = items.some(it => it.status === 'failed');
+  return `<div class="doc-modal-backdrop" style="backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
+    <div class="doc-modal-box" style="max-width:400px;">
+      <div class="section-title" style="margin-bottom:4px;">Memuat Data Aplikasi</div>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:14px;">${state.bootChecklistSelesai ? (adaGagal ? 'Selesai — ada beberapa bagian yang tetap gagal setelah dicoba ulang.' : 'Semua data berhasil dimuat.') : 'Mohon tunggu sebentar...'}</p>
+      <div style="max-height:340px;overflow-y:auto;">
+        ${items.map(it => `<div style="display:flex;align-items:center;gap:10px;padding:6px 4px;font-size:12.5px;color:${it.status==='pending'?'var(--ink-soft)':'var(--ink)'};">
+          <span style="width:18px;text-align:center;">${iconFor(it.status)}</span>
+          <span style="flex:1;">${it.label}</span>
+          ${it.status==='retry' ? `<span style="font-size:10px;color:var(--gold);">mencoba lagi...</span>` : ''}
+          ${it.status==='failed' ? `<span style="font-size:10px;color:var(--danger);">gagal</span>` : ''}
+        </div>`).join('')}
+      </div>
+      ${state.bootChecklistSelesai ? `<button type="button" class="primary" style="width:100%;margin-top:16px;" onclick="tutupBootChecklist()">${adaGagal ? 'Lanjutkan Meski Ada yang Gagal' : 'Selesai'}</button>` : ''}
+    </div>
+  </div>`;
+}
 function renderSessionConflictModal(){
   const m = state.sessionConflictModal;
   return `<div class="doc-modal-backdrop" style="backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);">
@@ -7226,7 +7274,8 @@ function renderShell(){
   ${renderMobileFooter()}
   ${renderChatPopup()}
   ${state.notifModal.open ? renderNotifModal() : ''}
-  ${state.isiReminderModal.open ? renderIsiReminderModal() : ''}`;
+  ${state.isiReminderModal.open ? renderIsiReminderModal() : ''}
+  ${state.bootChecklistOpen ? renderBootChecklistModal() : ''}`;
 }
 function renderNotifModal(){
   const n = state.notifModal;
