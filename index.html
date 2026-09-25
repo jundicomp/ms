@@ -660,6 +660,44 @@ function isReminderMarkedDoneInWindow(r, start, end){
   const selesai = new Date(r.selesaiTanggal + 'T00:00:00');
   return selesai >= start && selesai <= end;
 }
+// Peta: 1 Jenis Layanan -> nomor REMINDER_ITEMS yang mewakilinya (bisa lebih
+// dari 1, misal "SPT PPh Pasal 21" = Lapor + Bayar sekaligus). Item "by kasus"
+// (SP2DK dkk) sengaja TIDAK dipetakan ke sini — sifatnya tidak berjadwal
+// tanggal, jadi tidak relevan masuk tabel reminder yang bertanggal.
+const JENIS_LAYANAN_KE_REMINDER_ITEMS = {
+  'SPT PPh Pasal 21': [1,3], 'SPT PPh Unifikasi': [2,4], 'PPh Pasal 25': [5], 'PPh Final UMKM': [6],
+  'SPT PPN': [7,8], 'PPN KMS': [9], 'SPT Tahunan OP': [10,11], 'SPT Tahunan Badan': [12,13],
+};
+// Reminder VIRTUAL — dibuat otomatis dari checklist Jenis Layanan tiap klien,
+// bentuknya PERSIS seperti reminder manual (supaya semua logic tampilan/status
+// yang sudah ada bisa dipakai ulang tanpa duplikasi), ditandai isAuto:true.
+// Status selesainya sendiri TIDAK tersimpan di Sheet (klien tidak punya baris
+// Reminder sungguhan) — dilacak di VIRTUAL_REMINDER_SELESAI di bawah.
+const VIRTUAL_REMINDER_SELESAI = new Set();
+function generateVirtualReminders(){
+  const virtual = [];
+  MOCK_CLIENTS.forEach(c => {
+    (c.jenisLayanan || []).forEach(layanan => {
+      const itemNums = JENIS_LAYANAN_KE_REMINDER_ITEMS[layanan];
+      if (!itemNums) return;
+      const virtualId = `AUTO-${c.id}-${layanan.replace(/[^a-zA-Z0-9]/g,'_')}`;
+      const blokIdx = JENIS_LAYANAN_KE_BLOK[layanan];
+      const isTahunan = blokIdx === 2 || blokIdx === 3;
+      virtual.push({
+        id: virtualId, isAuto: true,
+        jenisJadwal: 'Jadwal Rutin', clientId: c.id,
+        wajibPajak: c.jenisWP === 'Badan' ? 'Badan Usaha' : 'Orang Pribadi', badanUsahaSubtype: c.bentukBadan || '',
+        tanggalMode: isTahunan ? 'Bulan Ini Saja' : 'Setiap Tanggal Ini',
+        tanggalValue: isTahunan ? (blokIdx===2 ? `${REMINDER_TODAY.getFullYear()}-03-31` : `${REMINDER_TODAY.getFullYear()}-04-30`) : String(REMINDER_BLOCKS[blokIdx].rangeEnd || 15),
+        lamaReminderHari: isTahunan ? 60 : 14,
+        isiReminder: itemNums,
+        selesaiTanggal: VIRTUAL_REMINDER_SELESAI.has(virtualId) ? REMINDER_TODAY.toISOString().slice(0,10) : null,
+      });
+    });
+  });
+  return virtual;
+}
+
 function isReminderActiveOn(r, today){
   const lama = Number(r.lamaReminderHari) || 0;
   if (!r.tanggalValue) return false;
@@ -2098,6 +2136,11 @@ async function deleteReminder(id){
   }
 }
 async function markReminderSelesai(id){
+  if (id.startsWith('AUTO-')){
+    VIRTUAL_REMINDER_SELESAI.add(id);
+    render();
+    return;
+  }
   const r = MOCK_REMINDERS.find(x=>x.id===id);
   if (!r) return;
   const selesaiTanggal = REMINDER_TODAY.toISOString().slice(0,10);
@@ -2113,6 +2156,11 @@ async function markReminderSelesai(id){
   }
 }
 async function undoReminderSelesai(id){
+  if (id.startsWith('AUTO-')){
+    VIRTUAL_REMINDER_SELESAI.delete(id);
+    render();
+    return;
+  }
   const r = MOCK_REMINDERS.find(x=>x.id===id);
   if (!r) return;
   try {
@@ -2178,21 +2226,6 @@ function isReminderPendingThisMonth(r, today){
   return true;
 }
 
-// Pelacakan "Selesai" untuk sistem OTOMATIS (dari checklist Jenis Layanan klien) —
-// key: clientId|blokIdx|yyyy-mm. CATATAN: ini baru tersimpan di memori browser
-// (belum ke Sheet) — begitu halaman di-refresh, statusnya kembali ke "Belum Selesai".
-// Perlu disambungkan ke backend supaya benar-benar permanen antar-device.
-const AUTO_REMINDER_SELESAI = new Set();
-function kunciSelesaiOtomatis(clientId, blokIdx){
-  const ym = REMINDER_TODAY.getFullYear() + '-' + String(REMINDER_TODAY.getMonth()+1).padStart(2,'0');
-  return `${clientId}|${blokIdx}|${ym}`;
-}
-function toggleSelesaiOtomatis(clientId, blokIdx){
-  const key = kunciSelesaiOtomatis(clientId, blokIdx);
-  if (AUTO_REMINDER_SELESAI.has(key)) AUTO_REMINDER_SELESAI.delete(key);
-  else AUTO_REMINDER_SELESAI.add(key);
-  render();
-}
 function setReminderAutoTab(idx){ state.reminderAutoTab = idx; render(); }
 
 function renderReminderTabsTable(){
@@ -2204,52 +2237,65 @@ function renderReminderTabsTable(){
   const activeBlock = REMINDER_BLOCKS[state.reminderAutoTab];
   const idx = state.reminderAutoTab;
 
-  const rows = [];
-  MOCK_CLIENTS.forEach(c => {
-    const layananCocok = (c.jenisLayanan||[]).filter(l => JENIS_LAYANAN_KE_BLOK[l] === idx);
-    if (layananCocok.length) rows.push({ client:c, layanan:layananCocok });
-  });
-  const selesaiRows = rows.filter(r => AUTO_REMINDER_SELESAI.has(kunciSelesaiOtomatis(r.client.id, idx)));
-  const belumRows = rows.filter(r => !AUTO_REMINDER_SELESAI.has(kunciSelesaiOtomatis(r.client.id, idx)));
-
-  function tabelKlien(list, selesai){
-    if (!list.length) return `<div class="empty" style="padding:16px;font-size:12px;">Tidak ada klien.</div>`;
-    return `<table class="matrix" style="width:100%;">
-      <tr><th style="text-align:left;">Klien</th><th style="text-align:left;">Jenis Layanan</th><th style="width:100px;"></th></tr>
-      ${list.map(r => `<tr>
-        <td style="text-align:left;font-weight:600;">${r.client.nama}</td>
-        <td style="text-align:left;font-size:12px;color:var(--ink-soft);">${r.layanan.join(', ')}</td>
-        <td>
-          ${selesai
-            ? `<span onclick="toggleSelesaiOtomatis('${r.client.id}',${idx})" style="cursor:pointer;color:var(--ink-soft);font-size:11.5px;text-decoration:underline;">Batalkan</span>`
-            : `<span onclick="toggleSelesaiOtomatis('${r.client.id}',${idx})" style="cursor:pointer;color:var(--sage);font-size:11.5px;font-weight:600;">${ICON_CHECK}Selesai</span>`}
-        </td>
-      </tr>`).join('')}
+  let bodyHtml;
+  if (activeBlock.isKasus){
+    // Layanan "by kasus" tidak berjadwal tanggal — tidak ada siklus bulanan,
+    // jadi tidak dipecah Selesai/Belum, cuma daftar klien yang pakai layanan ini.
+    const rows = [];
+    MOCK_CLIENTS.forEach(c => {
+      const layananCocok = (c.jenisLayanan||[]).filter(l => JENIS_LAYANAN_KE_BLOK[l] === idx);
+      if (layananCocok.length) rows.push({ client:c, layanan:layananCocok });
+    });
+    bodyHtml = !rows.length ? `<div class="empty" style="padding:16px;font-size:12px;">Tidak ada klien.</div>` : `<table class="matrix" style="width:100%;">
+      <tr><th style="width:40px;">No</th><th style="text-align:left;">Klien</th><th style="text-align:left;">Jenis Layanan</th></tr>
+      ${rows.map((r,i) => `<tr><td>${i+1}</td><td style="text-align:left;font-weight:600;">${r.client.nama}</td><td style="text-align:left;font-size:12px;color:var(--ink-soft);">${r.layanan.join(', ')}</td></tr>`).join('')}
     </table>`;
+  } else {
+    // Blok bertanggal — pakai persis data & status yang sama dengan tabel
+    // detail di bawahnya (reminder manual + otomatis digabung, status dihitung
+    // lewat isReminderActiveOn yang sama) supaya tidak ada 2 sumber kebenaran.
+    const semuaReminder = [...MOCK_REMINDERS, ...generateVirtualReminders()];
+    const cocok = semuaReminder.filter(r => r.isiReminder.some(n => REMINDER_BLOCKS[idx].items.includes(n)));
+    const belum = cocok.filter(r => isReminderActiveOn(r, REMINDER_TODAY));
+    const selesai = cocok.filter(r => !isReminderActiveOn(r, REMINDER_TODAY));
+
+    function tabelReminder(list){
+      if (!list.length) return `<div class="empty" style="padding:16px;font-size:12px;">Tidak ada klien.</div>`;
+      return `<table class="matrix" style="width:100%;">
+        <tr><th style="width:40px;">No</th><th style="text-align:left;">Klien</th><th style="text-align:left;">Isi Reminder</th></tr>
+        ${list.map((r,i) => {
+          const client = MOCK_CLIENTS.find(c=>c.id===r.clientId);
+          return `<tr>
+            <td>${i+1}</td>
+            <td style="text-align:left;font-weight:600;">${client ? client.nama : 'Klien dihapus'}</td>
+            <td style="text-align:left;font-size:12px;color:var(--ink-soft);">${r.isiReminder.map(n=>REMINDER_ITEMS[n-1]).join(', ')}</td>
+          </tr>`;
+        }).join('')}
+      </table>`;
+    }
+
+    bodyHtml = `
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-weight:700;color:var(--ink-soft);font-size:12.5px;">BELUM SELESAI BULAN INI</span>
+          <span style="font-size:11px;color:var(--ink-soft);">${belum.length} klien</span>
+        </div>
+        ${tabelReminder(belum)}
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-weight:700;color:var(--sage);font-size:12.5px;">SELESAI BULAN INI</span>
+          <span style="font-size:11px;color:var(--ink-soft);">${selesai.length} klien</span>
+        </div>
+        ${tabelReminder(selesai)}
+      </div>`;
   }
 
   return `
     <div class="tabs-row" style="margin-bottom:16px;">${tabsHtml}</div>
     <div class="section-title" style="font-size:14px;margin-bottom:4px;">${activeBlock.title}</div>
-    <p style="font-size:11px;color:var(--ink-soft);margin-bottom:14px;">Otomatis dari checklist Jenis Layanan tiap klien \u2014 buka Profil Klien untuk ubah checklist-nya.</p>
-
-    <div class="card" style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <span style="font-weight:700;color:var(--ink-soft);font-size:12.5px;">BELUM SELESAI BULAN INI</span>
-        <span style="font-size:11px;color:var(--ink-soft);">${belumRows.length} klien</span>
-      </div>
-      ${tabelKlien(belumRows, false)}
-    </div>
-
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <span style="font-weight:700;color:var(--sage);font-size:12.5px;">SELESAI BULAN INI</span>
-        <span style="font-size:11px;color:var(--ink-soft);">${selesaiRows.length} klien</span>
-      </div>
-      ${tabelKlien(selesaiRows, true)}
-    </div>
-
-    <p style="font-size:10.5px;color:var(--ink-soft);margin-top:10px;font-style:italic;">Catatan: status Selesai di sini baru tersimpan sementara di browser, belum ke Sheet \u2014 perlu disambungkan ke backend supaya permanen antar-device.</p>
+    <p style="font-size:11px;color:var(--ink-soft);margin-bottom:14px;">Status Selesai ditandai dari tabel Reminder di bawah (kolom Aksi) \u2014 sama untuk yang manual maupun otomatis.</p>
+    ${bodyHtml}
   `;
 }
 
@@ -2430,11 +2476,16 @@ function renderReminderSettings(){
 
   const addButtonHtml = `<button class="primary" style="width:auto;padding:8px 16px;" onclick="openReminderForm('add')">+ Tambah Reminder</button>`;
 
+  // Gabungkan reminder manual (MOCK_REMINDERS) dengan yang otomatis dari
+  // checklist Jenis Layanan klien (generateVirtualReminders) — supaya tabel
+  // & kartu di bawah menampilkan keduanya dalam satu daftar yang sama.
+  const semuaReminderTermasukOtomatis = [...MOCK_REMINDERS, ...generateVirtualReminders()];
+
   let bodyHtml;
   if (state.reminderView.tab === 'kartu'){
     const kartuButtonBoxHtml = `<div class="card" style="display:flex;justify-content:flex-end;margin-bottom:16px;">${addButtonHtml}</div>`;
     const REMINDER_GROUP_COLORS = ['#DCEBF7', '#FDECC8', '#DCEEE0', '#E9E0F8'];
-    const cardsHtml = MOCK_REMINDERS.length ? MOCK_REMINDERS.map(r=>{
+    const cardsHtml = semuaReminderTermasukOtomatis.length ? semuaReminderTermasukOtomatis.map(r=>{
       const client = MOCK_CLIENTS.find(c=>c.id===r.clientId);
       const tanggalLabel = r.tanggalMode === 'Bulan Ini Saja'
         ? formatDDMMYY(r.tanggalValue)
@@ -2462,8 +2513,10 @@ function renderReminderSettings(){
           </div>
           <div style="text-align:right;white-space:nowrap;">
             ${selesaiBtn}
-            <span style="cursor:pointer;color:var(--slate);font-size:12.5px;margin-right:12px;" onclick="openReminderForm('edit','${r.id}')">${ICON_EDIT}Ubah</span>
-            <span style="cursor:pointer;color:var(--danger);font-size:12.5px;" onclick="deleteReminder('${r.id}')">${ICON_TRASH}Hapus</span>
+            ${r.isAuto
+              ? `<span title="Otomatis dari checklist Jenis Layanan klien — ubah di Profil Klien" style="font-size:9.5px;color:var(--gold);border:1px solid var(--gold);border-radius:10px;padding:1px 7px;">Otomatis</span>`
+              : `<span style="cursor:pointer;color:var(--slate);font-size:12.5px;margin-right:12px;" onclick="openReminderForm('edit','${r.id}')">${ICON_EDIT}Ubah</span>
+                 <span style="cursor:pointer;color:var(--danger);font-size:12.5px;" onclick="deleteReminder('${r.id}')">${ICON_TRASH}Hapus</span>`}
           </div>
         </div>
       </div>`;
@@ -2499,6 +2552,12 @@ function renderReminderSettings(){
         const selesaiBtn = isActive
           ? `<span title="Tandai Selesai" style="cursor:pointer;color:var(--sage);" onclick="markReminderSelesai('${r.id}')">${ICON_CHECK.replace('margin-right:4px;','')}</span>`
           : `<span title="Batalkan (kembali ke Aktif)" style="cursor:pointer;color:var(--ink-soft);" onclick="undoReminderSelesai('${r.id}')">${iconUndo}</span>`;
+        if (r.isAuto){
+          return `<div style="text-align:right;white-space:nowrap;display:flex;gap:8px;justify-content:flex-end;align-items:center;">
+            <span title="Otomatis dari checklist Jenis Layanan klien — ubah di Profil Klien" style="font-size:9.5px;color:var(--gold);border:1px solid var(--gold);border-radius:10px;padding:1px 7px;">Otomatis</span>
+            ${selesaiBtn}
+          </div>`;
+        }
         return `<div style="text-align:right;white-space:nowrap;display:flex;gap:10px;justify-content:flex-end;align-items:center;">
           ${selesaiBtn}
           <span title="Ubah" style="cursor:pointer;color:var(--slate);" onclick="openReminderForm('edit','${r.id}')">${ICON_EDIT.replace('margin-right:4px;','')}</span>
@@ -2506,7 +2565,7 @@ function renderReminderSettings(){
         </div>`;
       }},
     ];
-    bodyHtml = managedTableBlock('reminders', reminderTableColumns, () => MOCK_REMINDERS, 'Cari jenis jadwal, klien, atau isi reminder...',
+    bodyHtml = managedTableBlock('reminders', reminderTableColumns, () => semuaReminderTermasukOtomatis, 'Cari jenis jadwal, klien, atau isi reminder...',
       `<button class="btn-secondary" onclick="exportRemindersExcel()">${fileIconSvg('#1D6F42','XLS')}<span class="btn-label">Export Excel</span></button>${addButtonHtml}`);
   }
 
