@@ -1080,11 +1080,32 @@ function bisaAksesSubModul(subModuleId){
   return !!cfg[state.session.role];
 }
 
+// Deteksi ringkas browser+OS dari userAgent — dipakai supaya modal konflik
+// sesi bisa bilang "aktif di Chrome di Windows" dsb, bukan cuma teks generik.
+function deteksiInfoDevice(){
+  const ua = navigator.userAgent;
+  let browser = 'Browser';
+  if (ua.includes('Edg/')) browser = 'Edge';
+  else if (ua.includes('Chrome/')) browser = 'Chrome';
+  else if (ua.includes('Firefox/')) browser = 'Firefox';
+  else if (ua.includes('Safari/')) browser = 'Safari';
+  let os = 'perangkat tidak dikenal';
+  if (ua.includes('Windows')) os = 'Windows';
+  else if (ua.includes('Mac OS')) os = 'Mac';
+  else if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+  else if (ua.includes('Linux')) os = 'Linux';
+  return `${browser} di ${os}`;
+}
+
 const api = {
-  async login(email, password){
+  async login(email, password, forceLogin){
     try {
-      const data = await callBackendUtama('login', { email, password });
-      if (!data.success) return { success:false, message: data.message || 'Login gagal.' };
+      const data = await callBackendUtama('login', { email, password, forceLogin: !!forceLogin, deviceInfo: deteksiInfoDevice() });
+      if (!data.success){
+        if (data.sessionConflict) return { success:false, sessionConflict:true, nama: data.nama, sessionInfo: data.sessionInfo, message: data.message };
+        return { success:false, message: data.message || 'Login gagal.' };
+      }
 
       // muat seluruh daftar user & klien ke memori — modul lain masih baca MOCK_USERS/MOCK_CLIENTS langsung
       await muatSemuaDataAplikasi(data.user.email);
@@ -1093,6 +1114,12 @@ const api = {
     } catch (err) {
       return { success:false, message: 'Gagal terhubung ke server: ' + err.message };
     }
+  },
+  async verifySession(email, sessionToken){
+    try {
+      const data = await callBackendUtama('verifySession', { email, sessionToken });
+      return data.success ? data.valid : true; // kalau gagal cek (offline dsb), anggap valid saja — jangan logout paksa gara-gara koneksi sesaat
+    } catch (err) { return true; }
   },
 
   async getAllModules(){
@@ -1280,7 +1307,7 @@ const api = {
    ================================================================ */
 const state = { session:null, modules:[], activeModule:null, allModulesMatrix:null, allSubModulesMatrix:null,
   moduleSettingsExpanded:{}, overrideUserEmail:'', overrideUserData:null, myOverrides:null, loading:false, error:'',
-  bootLoading: true, bootError: null, bootErrorType: null, bootWarning: null, dialogIdleTampil: false,
+  bootLoading: true, bootError: null, bootErrorType: null, bootWarning: null, sessionInvalid: false, dialogIdleTampil: false,
   emailLookupLoading: false, emailLookupNotFound: false, emailLookupTried: '',
   emailRegistrasiInfo: null,
   profileError: '', profileSukses: '', profileLoading: false,
@@ -1292,6 +1319,7 @@ const state = { session:null, modules:[], activeModule:null, allModulesMatrix:nu
   reminderTabDetailAktif: 0,
   notifModal: { open:false, sukses:true, pesan:'' },
   isiReminderModal: { open:false, items:[] },
+  sessionConflictModal: { open:false, email:'', password:'', nama:'', sessionInfo:'' },
   changelogOpen: false,
   telegramActivityMatrix: null, telegramGroupExpanded: {},
   notulensiForm: { open:false, step:'awal', mode:'add', waktuPilihan:'sekarang', clientIds:[], originalId:null,
@@ -1404,18 +1432,43 @@ async function handleLoginSubmit(ev){
   state.error = ''; state.loading = true; render();
   const result = await api.login(email, password);
   if (result.success){
-    state.session = result.user;
-    state.modules = result.modules;
-    state.activeModule = result.modules[0] ? result.modules[0].id : null;
-    logActivity('Login', `${result.user.nama} masuk ke sistem`);
-    try { sessionStorage.setItem('portalSession', JSON.stringify(result.user)); } catch(e){ /* kalau browser blokir storage, tidak masalah — login tetap jalan normal */ }
-    mulaiPengawasanIdle();
-    mulaiTimerTopbar();
-    tampilkanKutipanBaru();
+    selesaikanLoginSukses(result);
+  } else if (result.sessionConflict){
+    state.sessionConflictModal = { open:true, email, password, nama: result.nama, sessionInfo: result.sessionInfo };
+    state.loading = false; render();
   } else {
     state.error = result.message;
     buatUlangCaptcha('captchaLogin');
+    state.loading = false; render();
   }
+}
+function selesaikanLoginSukses(result){
+  state.session = result.user;
+  state.modules = result.modules;
+  state.activeModule = result.modules[0] ? result.modules[0].id : null;
+  logActivity('Login', `${result.user.nama} masuk ke sistem`);
+  try { sessionStorage.setItem('portalSession', JSON.stringify(result.user)); } catch(e){ /* kalau browser blokir storage, tidak masalah — login tetap jalan normal */ }
+  mulaiPengawasanIdle();
+  mulaiTimerTopbar();
+  tampilkanKutipanBaru();
+  mulaiPengawasanSesiTunggal();
+  state.loading = false; render();
+}
+async function lanjutkanLoginPaksa(){
+  const m = state.sessionConflictModal;
+  state.sessionConflictModal.open = false;
+  state.loading = true; render();
+  const result = await api.login(m.email, m.password, true);
+  if (result.success){
+    selesaikanLoginSukses(result);
+  } else {
+    state.error = result.message;
+    buatUlangCaptcha('captchaLogin');
+    state.loading = false; render();
+  }
+}
+function batalkanLoginPaksa(){
+  state.sessionConflictModal = { open:false, email:'', password:'', sessionInfo:'' };
   state.loading = false; render();
 }
 function fillDemo(email){
@@ -1500,6 +1553,25 @@ document.addEventListener('animationend', function(ev){
   if (ev.target && ev.target.id === 'topbar-kutipan-text') tampilkanKutipanBaru();
 });
 
+// ============================================================
+// SESI TUNGGAL — cek berkala apakah token sesi device ini masih yang aktif
+// untuk akun ini. Kalau sudah ada login dari tempat lain (menggantikan token
+// ini), device ini TIDAK langsung ditendang — cuma dikasih peringatan
+// (banner), supaya kalau lagi di tengah isi form panjang, tetap sempat
+// disimpan dulu sebelum benar-benar keluar.
+// ============================================================
+let _sesiTunggalInterval = null;
+function mulaiPengawasanSesiTunggal(){
+  if (_sesiTunggalInterval) clearInterval(_sesiTunggalInterval);
+  _sesiTunggalInterval = setInterval(async () => {
+    if (!state.session || !state.session.sessionToken) return;
+    const valid = await api.verifySession(state.session.email, state.session.sessionToken);
+    if (!valid && !state.sessionInvalid){
+      state.sessionInvalid = true;
+      render();
+    }
+  }, 2 * 60 * 1000); // tiap 2 menit
+}
 function mulaiPengawasanIdle(){
   clearTimeout(_idleTimer);
   if (!state.session) return; // cuma aktif kalau sedang login
@@ -1586,11 +1658,12 @@ function handleLogout(){
   state.session=null; state.modules=[]; state.activeModule=null; state.allModulesMatrix=null;
   state.allSubModulesMatrix=null; state.moduleSettingsExpanded={}; state.overrideUserEmail=''; state.overrideUserData=null; state.myOverrides=null;
   state.lastNotifCount=null; state.chatView={ activeWith:null }; state.chatPopupOpen=false;
-  state.gatePage='email'; state.emailGerbang='';
+  state.gatePage='email'; state.emailGerbang=''; state.sessionInvalid = false;
   try { sessionStorage.removeItem('portalSession'); } catch(e){}
   clearTimeout(_idleTimer);
   clearInterval(_idleCountdownInterval);
   clearInterval(_topbarTimerInterval);
+  clearInterval(_sesiTunggalInterval);
   hentikanPollingChat();
   render();
 }
@@ -2402,6 +2475,21 @@ function bukaDetailIsiReminder(reminderId){
   render();
 }
 function tutupIsiReminderModal(){ state.isiReminderModal.open = false; render(); }
+function renderSessionConflictModal(){
+  const m = state.sessionConflictModal;
+  return `<div class="doc-modal-backdrop" style="backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);">
+    <div class="doc-modal-box" style="max-width:420px;text-align:center;">
+      <div class="seal" style="margin:0 auto 14px;background:#FDF3E3;border-color:var(--gold);color:var(--gold);">&#9888;</div>
+      <p style="font-size:13.5px;color:var(--ink);line-height:1.7;margin:0 0 20px;">
+        Akun <b>${m.nama || m.email}</b> ini sedang aktif di <b>${m.sessionInfo}</b>. Lanjutkan? Device lain otomatis logout.
+      </p>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button type="button" onclick="batalkanLoginPaksa()" style="padding:9px 20px;border:1px solid var(--border);border-radius:7px;background:#fff;font-size:13px;cursor:pointer;">Batal</button>
+        <button type="button" class="primary" style="width:auto;padding:9px 20px;" onclick="lanjutkanLoginPaksa()">Lanjutkan</button>
+      </div>
+    </div>
+  </div>`;
+}
 function renderIsiReminderModal(){
   const m = state.isiReminderModal;
   return `<div class="doc-modal-backdrop" onclick="if(event.target===this) tutupIsiReminderModal()">
@@ -6813,7 +6901,7 @@ function renderLogin(){
       &nbsp;&middot;&nbsp;
       <span onclick="bukaLupaPassword()" style="font-size:11.5px;color:var(--gold);cursor:pointer;text-decoration:underline;">Lupa Password?</span>
     </div>
-  </div></div>`;
+  </div></div>${state.sessionConflictModal.open ? renderSessionConflictModal() : ''}`;
 }
 
 function bukaLupaPassword(){
@@ -7177,6 +7265,11 @@ function renderShell(){
     ? `<div class="seal" style="overflow:hidden;padding:0;"><img src="${s.logoKantor}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>`
     : `<div class="seal">KP</div>`;
   return `${renderTopbar()}
+  ${state.sessionInvalid ? `
+  <div id="banner-sesi-invalid" style="background:#FBE7EA;border-bottom:2px solid var(--danger);padding:9px 18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#7A2530;">
+    <span>&#9888; Sesi Anda sudah tidak aktif — ada login dari perangkat lain. Simpan pekerjaan Anda, lalu refresh halaman.</span>
+    <button type="button" onclick="location.reload()" class="primary" style="width:auto;padding:5px 16px;font-size:12px;">Refresh Sekarang</button>
+  </div>` : ''}
   ${state.bootWarning ? `
   <div id="banner-boot-warning" style="background:#FBE7EA;border-bottom:2px solid var(--danger);padding:9px 18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#7A2530;">
     <span>&#9888; ${state.bootWarning}</span>
@@ -7441,6 +7534,7 @@ async function mulaiAplikasi(){
       mulaiPengawasanIdle();
       mulaiTimerTopbar();
       tampilkanKutipanBaru();
+      mulaiPengawasanSesiTunggal();
     }
   } catch (err) { /* kalau gagal pulihkan sesi, biarkan lanjut ke alur login normal */ }
 
