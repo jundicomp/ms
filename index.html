@@ -1128,6 +1128,10 @@ const api = {
       return data.success ? data.valid : true; // kalau gagal cek (offline dsb), anggap valid saja — jangan logout paksa gara-gara koneksi sesaat
     } catch (err) { return true; }
   },
+  async bersihkanSessionToken(email, sessionToken){
+    try { await callBackendUtama('bersihkanSessionToken', { email, sessionToken }); }
+    catch (err) { /* logout tetap lanjut normal meski gagal bersihkan token — bukan hal fatal */ }
+  },
   async getBootBundle(email){
     try {
       return await callBackendUtama('getBootBundle', { email });
@@ -1714,7 +1718,10 @@ function renderDialogIdle(){
 });
 
 function handleLogout(){
-  if (state.session) logActivity('Logout', `${state.session.nama} keluar dari sistem`);
+  if (state.session) {
+    logActivity('Logout', `${state.session.nama} keluar dari sistem`);
+    if (state.session.sessionToken) api.bersihkanSessionToken(state.session.email, state.session.sessionToken);
+  }
   state.session=null; state.modules=[]; state.activeModule=null; state.allModulesMatrix=null;
   state.allSubModulesMatrix=null; state.moduleSettingsExpanded={}; state.overrideUserEmail=''; state.overrideUserData=null; state.myOverrides=null;
   state.lastNotifCount=null; state.chatView={ activeWith:null }; state.chatPopupOpen=false;
