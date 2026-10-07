@@ -1579,6 +1579,7 @@ let _sesiTunggalInterval = null;
 // ============================================================
 let _kesehatanSheetInterval = null;
 async function cekKesehatanSheetBerkala(){
+  const sebelumnya = JSON.stringify(state.kesehatanSheet);
   const hasil = await api.cekKesehatanSheet();
   if (hasil.success) state.kesehatanSheet = hasil.status;
   else { // gagal total (server tidak terjangkau) -> tandai semua merah
@@ -1586,7 +1587,11 @@ async function cekKesehatanSheetBerkala(){
     DAFTAR_SEMUA_TAB_SHEET.forEach(d => { semuaMerah[d.key] = false; });
     state.kesehatanSheet = semuaMerah;
   }
-  render();
+  // Cuma render ulang kalau statusnya BENERAN berubah — sebelumnya render()
+  // dipanggil setiap 90 detik tanpa syarat, yang bikin form yang lagi diisi
+  // user ter-reset tiba-tiba (karena render ulang itu membangun ulang SELURUH
+  // tampilan dari state, termasuk form yang sedang aktif).
+  if (JSON.stringify(state.kesehatanSheet) !== sebelumnya) render();
 }
 function mulaiPengawasanKesehatanSheet(){
   if (_kesehatanSheetInterval) clearInterval(_kesehatanSheetInterval);
