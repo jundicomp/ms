@@ -1102,6 +1102,22 @@ function bisaAksesSubModul(subModuleId){
   return !!cfg[state.session.role];
 }
 
+// Tab PERTAMA di dalam Pengaturan yang boleh diakses role yang sedang login,
+// menurut urutan tombol tab yang sungguhan dirender di renderAdministrasiModule.
+// Dipakai sebagai default saat membuka Pengaturan — supaya role yang tidak
+// punya akses admin_modul (misal Admin/Staff yang cuma dikasih admin_user)
+// tidak pernah nyasar melihat konten tab 'Modul' hanya karena itu default lama
+// yang di-hardcode. Kalau tidak ada satupun tab yang boleh (seharusnya tidak
+// terjadi kalau sudah sampai di sini), jatuhkan ke 'user' sebagai penjagaan.
+const URUTAN_TAB_ADMINISTRASI = [
+  ['modul', 'admin_modul'], ['user', 'admin_user'], ['sistem', 'admin_sistem'],
+  ['log', 'admin_log'], ['koneksi', 'admin_koneksi'], ['telegram', 'admin_telegram'],
+];
+function tabAdministrasiDefault(){
+  const cocok = URUTAN_TAB_ADMINISTRASI.find(([, subId]) => bisaAksesSubModul(subId));
+  return cocok ? cocok[0] : 'user';
+}
+
 // Deteksi ringkas browser+OS dari userAgent — dipakai supaya modal konflik
 // sesi bisa bilang "aktif di Chrome di Windows" dsb, bukan cuma teks generik.
 function deteksiInfoDevice(){
@@ -1760,7 +1776,7 @@ function handleLogout(){
    ================================================================ */
 async function openModuleSettings(){
   state.activeModule = 'administrasi';
-  state.administrasiTab = 'modul';
+  state.administrasiTab = tabAdministrasiDefault();
   state.loading = true; render();
   const result = await api.getAllModules();
   state.allModulesMatrix = result.modules;
@@ -1819,7 +1835,7 @@ async function resetUserOverrideCell(subModuleId){
   } else { alert(result.message); }
 }
 function setModule(id){
-  if (id === 'administrasi' && !state.allModulesMatrix) { state.activeModule='administrasi'; state.administrasiTab='modul'; openModuleSettings(); return; }
+  if (id === 'administrasi' && !state.allModulesMatrix) { state.activeModule='administrasi'; state.administrasiTab=tabAdministrasiDefault(); openModuleSettings(); return; }
   state.userForm.open = false;
   state.activeModule = id; render();
 }
@@ -6158,6 +6174,13 @@ async function muatPengaturanTelegram(){
   state.loading = false; render();
 }
 function renderAdministrasiModule(){
+  // Jaga-jaga: kalau state nyangkut di tab 'modul' padahal role ini tidak
+  // boleh akses admin_modul (misal Admin/Staff yang cuma dikasih admin_user),
+  // alihkan ke tab pertama yang memang boleh dia lihat — supaya konten
+  // matriks modul tidak pernah bocor ke role yang tidak berhak.
+  if (state.administrasiTab === 'modul' && !bisaAksesSubModul('admin_modul')) {
+    state.administrasiTab = tabAdministrasiDefault();
+  }
   if (state.administrasiTab === 'modul' && !state.allModulesMatrix && !state.loading){ openModuleSettings(); }
   const tabsHtml = `<div class="tabs-row">
     ${bisaAksesSubModul('admin_modul') ? `<button class="tab-btn ${state.administrasiTab==='modul'?'active':''}" onclick="setAdministrasiTab('modul')">Modul</button>` : ''}
