@@ -822,6 +822,17 @@ function logActivity(aksi, detail){
 // (?backend=...), BUKAN ditanam tetap di kode. Ini membuat 1 file HTML ini
 // bisa dipakai BERSAMA oleh semua pembeli — tiap pembeli dapat link unik
 // berisi backend URL milik mereka sendiri, tanpa perlu edit file apa pun.
+// Default backend per-SLUG (bagian path di URL) — dipakai kalau device belum
+// pernah pairing lewat ?backend=... dan localStorage juga masih kosong. Dengan
+// ini, kantor yang sudah terdaftar di sini LANGSUNG ke halaman login (skip
+// gerbang email + skip cek lisensi lewat Penjaga Lisensi) untuk SEMUA device,
+// tanpa staf perlu buka link ?backend=... dulu satu per satu.
+// Tambahkan baris baru di sini kalau nanti ada kantor lain yang mau diperlakukan
+// sama — JANGAN taruh default di sini kalau kantor itu masih mau pakai alur
+// gerbang email/lisensi yang normal (biarkan saja tidak ada di daftar ini).
+const BACKEND_DEFAULT_PER_SLUG = {
+  '/ms/': 'https://script.google.com/macros/s/AKfycbwVGEmBsgFyhJkJvuRXebc3pltYT8LRWShuBlPgdO-hGHvljfBvpKIAHrjBAflhnMWD/exec',
+};
 function ambilBackendURLDariLink(){
   const params = new URLSearchParams(window.location.search);
   const dariLink = params.get('backend');
@@ -835,7 +846,11 @@ function ambilBackendURLDariLink(){
     try { window.history.replaceState({}, '', window.location.pathname); } catch(e){}
     return dariLink;
   }
-  try { return localStorage.getItem('pkp_backend_url') || ''; } catch(e){ return ''; }
+  try {
+    const tersimpan = localStorage.getItem('pkp_backend_url');
+    if (tersimpan) return tersimpan;
+  } catch(e){}
+  return BACKEND_DEFAULT_PER_SLUG[window.location.pathname] || '';
 }
 let WEBAPP_URL_UTAMA = ambilBackendURLDariLink();
 
